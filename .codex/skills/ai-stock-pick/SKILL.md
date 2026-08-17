@@ -28,7 +28,7 @@ Apply the user’s original rules as the primary strategy:
 ## Data fallback
 
 - Use the local service health endpoint `/api/health` before querying recommendations.
-- Prefer the `a-stock-data` adapter for the 10-session limit-up pool, Tencent quote and qfq daily K-line, Baidu K-line fallback, and THS limit-up reason.
+- Prefer the `a-stock-data` adapter for the 10-session limit-up pool, Tencent quote and unadjusted daily K-line for limit detection, Baidu K-line fallback, and THS limit-up reason. Never infer a limit-up from adjusted percentage changes around ex-rights dates.
 - Fall back in order to Tushare, Xiaoshi, and the legacy Eastmoney quote/K-line adapter. Preserve `source`, `fallback`, and `fallbackReason`.
 - If no source supplies a complete 10-session pool, return observation only.
 
@@ -44,6 +44,8 @@ Do not equate “today rose to the limit” or “there is an announcement” wi
 5. Use intraday data only to confirm opening strength, volume-price repair, support, and re-sealing; do not use it to manufacture a theme or replace the 10-session review.
 
 The recommended order is `题材主线 → 涨停梯队 → 正宗性 → 股性/市值/成交量 → 回调复制 → 分时确认`, not price-first ranking.
+
+Implementation gates: preserve the complete 10-session union before structural filtering. Treat the first item in a multi-item limit-up reason as the core catalyst and the remaining items as overlays. Require at least two stocks sharing that core theme on the theme's latest appearance date; score a newly appearing cluster with at least two first boards above ordinary breadth, then a consecutive-board ladder, then broad participation. Verify the core theme—not any overlay—against `stock_company.main_business` or `business_scope`; treat missing business data as unverified. Score circulating market cap explicitly, with 20–200亿元 as the preferred range and 10–300亿元 as the secondary range. Quote freshness must use the provider's exchange timestamp, never the local request time. During live trading require quote/minute timestamps within 15 minutes, with a lunch-break allowance; pre-market may use the previous completed session and after close requires closing-stage data.
 
 ## Hard rejection rules
 
@@ -65,7 +67,7 @@ Keep credentials outside this Skill in environment variables or a secret manager
 
 ### a-stock-data primary source
 
-- Follow `simonlin1212/a-stock-data` routing: use Eastmoney push2ex for limit-up pools, Tencent for batch quotes, market-cap fields, and qfq daily K-lines, Baidu as K-line fallback, and THS for limit-up reasons.
+- Follow `simonlin1212/a-stock-data` routing: use Eastmoney push2ex for limit-up pools, Tencent for batch quotes, market-cap fields, and unadjusted daily K-lines for limit detection, Baidu as K-line fallback, and THS for limit-up reasons. Use adjusted bars only for optional structural trend analysis.
 - Build the 10-session union from complete dated push2ex pools. Treat `data=null` as an unavailable/non-trading date, not an empty trading session.
 - Serialize Eastmoney requests with at least a one-second interval. Do not fan them out concurrently.
 - Reject Tencent stale quotes, normalize `920xxx` as Beijing-market symbols, and preserve float market cap separately from total market cap.
@@ -119,7 +121,7 @@ Return no more than three A-share candidates as a research shortlist. Require re
 
 Weight theme/event 25%, pullback/rebound 25%, stock character 20%, liquidity/market-cap fit 15%, current-market confirmation 15%. Emit all five component scores; do not hide them behind a single total.
 
-For each of at most three recommendations output: entry trigger, entry reference price and timestamp, take-profit 1/2 as planning levels, stop-loss below pullback low or a declared cap, invalidation conditions, evidence completeness, and missing fields. Use wording such as “计划价位/触发条件”, never a naked buy/sell command.
+For each of at most three recommendations output: entry trigger, a structure-derived entry zone and reference midpoint, entry timestamp, take-profit 1/2 as planning levels, stop-loss below pullback low or a declared cap, invalidation conditions, evidence completeness, and missing fields. Do not copy the current quote directly into the entry field without calculating the pullback structure. Use wording such as “计划价位/触发条件”, never a naked buy/sell command.
 
 Use Xiaoshi for quotes, K-lines, announcements, sectors, and incremental news (`after_id`); preserve `market=CN` and `instrument=stock`. Use Tushare only as a fallback for daily or limit-up history. Never infer intraday承接、炸板、回封 or封单 from daily bars.
 
