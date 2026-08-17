@@ -20,9 +20,9 @@ Apply the user’s original rules as the primary strategy:
 ## Data fallback
 
 - Use the local service health endpoint `/api/health` before querying recommendations.
-- Prefer Tushare for the 10-session limit-up pool and daily history.
-- If Tushare is unavailable, unauthorized, times out, or returns malformed data, use Xiaoshi and preserve `source`, `fallback`, and `fallbackReason`.
-- If both sources fail, return no recommendations and state the unavailable data.
+- Prefer the `a-stock-data` adapter for the 10-session limit-up pool, Tencent quote and qfq daily K-line, Baidu K-line fallback, and THS limit-up reason.
+- Fall back in order to Tushare, Xiaoshi, and the legacy Eastmoney quote/K-line adapter. Preserve `source`, `fallback`, and `fallbackReason`.
+- If no source supplies a complete 10-session pool, return observation only.
 
 ## Strategy definition
 
@@ -55,7 +55,16 @@ The recommended order is `题材主线 → 涨停梯队 → 正宗性 → 股性
 
 Keep credentials outside this Skill in environment variables or a secret manager. Never print or commit tokens/API keys.
 
-### Tushare primary source
+### a-stock-data primary source
+
+- Follow `simonlin1212/a-stock-data` routing: use Eastmoney push2ex for limit-up pools, Tencent for batch quotes, market-cap fields, and qfq daily K-lines, Baidu as K-line fallback, and THS for limit-up reasons.
+- Build the 10-session union from complete dated push2ex pools. Treat `data=null` as an unavailable/non-trading date, not an empty trading session.
+- Serialize Eastmoney requests with at least a one-second interval. Do not fan them out concurrently.
+- Reject Tencent stale quotes, normalize `920xxx` as Beijing-market symbols, and preserve float market cap separately from total market cap.
+- Use THS reason, board type, seal rate, and break count as limit-up catalyst/stock-character evidence, while still checking main-business authenticity separately.
+- Preserve provider metadata as `a-stock-data/Eastmoney push2ex`, `a-stock-data/Tencent`, `a-stock-data/Baidu`, or `a-stock-data/THS`.
+
+### Tushare fallback
 
 - Read `TUSHARE_TOKEN` and optional `TUSHARE_HTTP_URL` from the runtime environment.
 - Prefer the Python bridge when the configured Python runtime is valid; otherwise use the HTTP API with JSON POST bodies containing `api_name`, `token`, `params`, and `fields`.
