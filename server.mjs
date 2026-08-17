@@ -1,25 +1,16 @@
-import http from 'node:http'
-import nodemailer from 'nodemailer'
-import {aStockLimitPool,aStockTencentQuotes,aStockTencentKline,aStockEastmoneyKline,aStockBaiduKline,aStockThsLimitReasons} from './a-stock-data.mjs'
+import {loadRuntimeConfig} from './src/config/runtime.mjs'
+import {ymd,daysAgoYmd,dateValue,normalizeCode,normalizeBars,isFreshTimestamp,isSessionTimestamp,limitThreshold,mapLimit} from './src/domain/market-rules.mjs'
+import {aStockLimitPool,aStockTencentQuotes,aStockTencentKline,aStockEastmoneyKline,aStockBaiduKline,aStockThsLimitReasons} from './src/infrastructure/providers/a-stock-data.mjs'
+import {createRecommendationMailer} from './src/delivery/email.mjs'
+import {createHttpServer} from './src/delivery/http.mjs'
+import {runService} from './src/application/service-runtime.mjs'
 
-const port=Number(process.env.PORT||5201)
-const tushareToken=process.env.TUSHARE_TOKEN||''
-const tushareUrl=(process.env.TUSHARE_HTTP_URL||'http://api.tushare.pro').replace(/\/$/,'')
-const xiaoshiKey=process.env.SHIZIXI_API_KEY||''
-const xiaoshiBase='https://api.shizixi.com'
-const serpApiKey=process.env.SERPAPI_KEY||''
-const mailTo=process.env.MAIL_TO||''
-let lastPushDate=''
-
-const json=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*'});res.end(JSON.stringify(data))}
-const ymd=()=>new Date().toISOString().slice(0,10).replaceAll('-','')
-const daysAgoYmd=days=>{const d=new Date();d.setUTCDate(d.getUTCDate()-days);return d.toISOString().slice(0,10).replaceAll('-','')}
-const dateValue=v=>{const s=String(v||'').replace(/\D/g,'').slice(0,8);return s.length===8?Number(s):0}
-const normalizeBars=bars=>[...new Map((Array.isArray(bars)?bars:[]).map(b=>[dateValue(b.trade_date||b.date||b.datetime||b.time),b]).filter(([d])=>d)).entries()].sort((a,b)=>a[0]-b[0]).map(([,b])=>b)
-const isFreshTimestamp=(value,maxHours=18)=>{const t=Date.parse(value);return Number.isFinite(t)&&Date.now()-t>=0&&Date.now()-t<=maxHours*3600000}
-const isSessionTimestamp=(value,session)=>dateValue(value)===Number(session)
-const limitThreshold=(code,name='')=>/(ST|退)/i.test(name)?4.8:(String(code).includes('.BJ')?29.5:(String(code).startsWith('30')||String(code).startsWith('68')?19.5:9.5))
-async function mapLimit(items,limit,fn){const out=new Array(items.length);let next=0;await Promise.all(Array.from({length:Math.min(limit,items.length)},async()=>{while(next<items.length){const i=next++;out[i]=await fn(items[i],i)}}));return out}
+const config=loadRuntimeConfig()
+const {port,serpApiKey}=config
+const tushareToken=config.tushare.token
+const tushareUrl=config.tushare.url
+const xiaoshiKey=config.xiaoshi.key
+const xiaoshiBase=config.xiaoshi.baseUrl
 async function tushare(api_name,params,fields){
   if(!tushareToken) throw Error('未配置 TUSHARE_TOKEN')
   const r=await fetch(tushareUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_name,token:tushareToken,params,fields})})
@@ -33,7 +24,6 @@ async function xiaoshi(path,options={}){
   if(!r.ok) throw Error(`小石请求失败 HTTP ${r.status}`)
   return r.json()
 }
-function normalizeCode(v){return String(v||'').replace(/\.(SZ|SH|BJ)$/i,'')}
 function eastmoneySecid(value){const code=normalizeCode(value);return `${code.startsWith('6')?'1':'0'}.${code}`}
 async function eastmoneyQuote(code){
   const fields='f43,f57,f58,f59,f60,f124,f170'; const r=await fetch(`https://push2.eastmoney.com/api/qt/stock/get?secid=${eastmoneySecid(code)}&fields=${fields}`)
@@ -140,33 +130,13 @@ async function recommendations(){
     const total=Object.values(scoreBreakdown).reduce((a,b)=>a+b,0); const eligible=technicalPass&&total>=78&&theme&&intradayFresh
     const stopLoss=Number.isFinite(postLimitLow)?Number((postLimitLow*.99).toFixed(2)):null; const risk=stopLoss&&price>stopLoss?price-stopLoss:NaN
     const takeProfit1=Number(Math.max(limitPeak||0,price+(Number.isFinite(risk)?risk*1.5:price*.08)).toFixed(2)); const takeProfit2=Number(Math.max(price*1.15,price+(Number.isFinite(risk)?risk*2.5:price*.15)).toFixed(2))
-    return {code:x.ts_code,name:quote?.name||x.name||x.ts_code,price:quoteOk?price:null,limit_up_count:limitCount,limit_up_dates:limitDates.length?limitDates:(x.pool_limit_dates||[]),score:total,score_breakdown:scoreBreakdown,status:eligible?'推荐':'观察',source,providers,trade_date:date,quote_timestamp:quote?.observed_at||quote?.timestamp||null,theme_evidence:poolThemeEvidence||(announcementEvidence?{type:'announcement',title:announcementEvidence.title,time:announcementEvidence.publish_time||announcementEvidence.date||null,source:providers.announcements}:newsEvidence?{type:'news',...newsEvidence}:null),related_news:realtimeNews,checks:{pool:poolVerified?'近10交易日完整池':'候选池不完整',recent_limit_up:recent10?'已核验':'近10日无涨停',pullback:pullback?'涨停后短回调与修复通过':(priorLimit?'涨停后回调窗口/幅度/修复不通过':'只有当日涨停，尚无板后回调'),volume:volumeContracted?'回调阶段缩量':'回调缩量未确认',liquidity:liquid?'近3日成交额通过':'近3日成交额不足或缺失',theme:theme?'有临近涨停日的事件证据':'待正宗题材归因',quote:quoteOk?'行情新鲜':'行情缺失或过期',intraday:intradayFresh?'当日分时新鲜':'分时缺失或过期'},technical:{bars:closes.length,prior_limit_date:priorLimit?.date||null,post_limit_days:postLimitBars.length,pullback_low:Number.isFinite(postLimitLow)?postLimitLow:null,pullback_pct:Number(pullbackPct.toFixed(2)),recovery_ratio:Number((recoveryRatio*100).toFixed(2)),volume_contracted:volumeContracted,avg_amount_3d:Number.isFinite(avgAmount3)?Number(avgAmount3.toFixed(0)):null,minute_bars:minute.length},missing_fields:[...(poolVerified?[]:['完整近10交易日涨停池']),...(recent10?[]:['近10日涨停历史']),...(pullback?[]:['涨停后1-5日短回调与至少35%修复']),...(volumeContracted?[]:['回调缩量']),...(liquid?[]:['近3日日均成交额≥1亿元']),...(theme?[]:['涨停附近的正宗题材/触发事件']),...(quoteOk?[]:['新鲜行情快照']),...(intradayFresh?[]:['新鲜1分钟分时'])],trade_plan:quoteOk?{entry_trigger:'不追高；回踩不破修复位并重新放量，且板块强度未退潮时再确认',entry_reference:price,take_profit_1:takeProfit1,take_profit_2:takeProfit2,stop_loss:stopLoss,risk_reward_1:Number.isFinite(risk)&&risk>0?Number(((takeProfit1-price)/risk).toFixed(2)):null,risk_reward_2:Number.isFinite(risk)&&risk>0?Number(((takeProfit2-price)/risk).toFixed(2)):null,invalidation:['跌破涨停后回调低点','行情或分时过期','近3日流动性跌破门槛','题材证据被证伪','板块退潮']} : null}
+    return {code:x.ts_code,name:quote?.name||x.name||x.ts_code,price:quoteOk?price:null,limit_up_count:limitCount,limit_up_dates:limitDates.length?limitDates:(x.pool_limit_dates||[]),score:total,score_breakdown:scoreBreakdown,status:eligible?'推荐':'观察',source,providers,trade_date:date,quote_timestamp:quote?.observed_at||quote?.timestamp||null,theme_evidence:poolThemeEvidence||(announcementEvidence?{type:'announcement',title:announcementEvidence.title,time:announcementEvidence.publish_time||announcementEvidence.date||null,source:providers.announcements}:newsEvidence?{type:'news',...newsEvidence}:null),related_news:realtimeNews,checks:{pool:poolVerified?'近10交易日完整池':'候选池不完整',recent_limit_up:recent10?'已核验':'近10日无涨停',pullback:pullback?'涨停后短回调与修复通过':(priorLimit?'涨停后回调窗口/幅度/修复不通过':'只有当日涨停，尚无板后回调'),volume:volumeContracted?'回调阶段缩量':'回调缩量未确认',liquidity:liquid?'近3日成交额通过':'近3日成交额不足或缺失',theme:theme?'有临近涨停日的事件证据':'待正宗题材归因',quote:quoteOk?'行情新鲜':'行情缺失或过期',intraday:intradayFresh?'当日分时新鲜':'分时缺失或过期'},technical:{bars:closes.length,prior_limit_date:priorLimit?.date||null,limit_up_price:Number.isFinite(limitPeak)?limitPeak:null,post_limit_days:postLimitBars.length,pullback_low:Number.isFinite(postLimitLow)?postLimitLow:null,pullback_pct:Number(pullbackPct.toFixed(2)),recovery_ratio:Number((recoveryRatio*100).toFixed(2)),volume_contracted:volumeContracted,avg_amount_3d:Number.isFinite(avgAmount3)?Number(avgAmount3.toFixed(0)):null,minute_bars:minute.length},missing_fields:[...(poolVerified?[]:['完整近10交易日涨停池']),...(recent10?[]:['近10日涨停历史']),...(pullback?[]:['涨停后1-5日短回调与至少35%修复']),...(volumeContracted?[]:['回调缩量']),...(liquid?[]:['近3日日均成交额≥1亿元']),...(theme?[]:['涨停附近的正宗题材/触发事件']),...(quoteOk?[]:['新鲜行情快照']),...(intradayFresh?[]:['新鲜1分钟分时'])],trade_plan:quoteOk?{entry_trigger:'不追高；回踩不破修复位并重新放量，且板块强度未退潮时再确认',entry_reference:price,take_profit_1:takeProfit1,take_profit_2:takeProfit2,stop_loss:stopLoss,risk_reward_1:Number.isFinite(risk)&&risk>0?Number(((takeProfit1-price)/risk).toFixed(2)):null,risk_reward_2:Number.isFinite(risk)&&risk>0?Number(((takeProfit2-price)/risk).toFixed(2)):null,invalidation:['跌破涨停后回调低点','行情或分时过期','近3日流动性跌破门槛','题材证据被证伪','板块退潮']} : null}
   })
   return {date,source,fallback,fallbackReason,poolVerified,total:rows.length,recommendations:result.filter(x=>x.status==='推荐').sort((a,b)=>b.score-a.score).slice(0,3),watch:result.filter(x=>x.status==='观察').sort((a,b)=>b.score-a.score).slice(0,12),updatedAt:new Date().toISOString(),strategy:'ai-stock-pick-v3'}
 }
-async function pushRecommendations(data){
-  if(!data.recommendations?.length) return {sent:false,reason:'无正式推荐'}
-  if(lastPushDate===data.date) return {sent:false,reason:'今日已推送'}
-  if(!process.env.SMTP_USER||!process.env.SMTP_PASS||!mailTo) throw Error('未配置 SMTP_USER、SMTP_PASS 或 MAIL_TO')
-  const transporter=nodemailer.createTransport({host:process.env.SMTP_HOST||'smtp.qq.com',port:Number(process.env.SMTP_PORT||465),secure:true,auth:{user:process.env.SMTP_USER,pass:process.env.SMTP_PASS}})
-  const rows=data.recommendations.map(x=>`<tr><td>${x.name}<br>${x.code}</td><td>${x.limit_up_dates.join('<br>')}</td><td>${x.technical.prior_limit_date||'—'} / ${x.technical.post_limit_days}日 / ${x.technical.pullback_pct}%</td><td>${x.trade_plan.entry_reference}</td><td>${x.trade_plan.take_profit_1} / ${x.trade_plan.take_profit_2}</td><td>${x.trade_plan.stop_loss}</td><td>${x.trade_plan.entry_trigger}</td></tr>`).join('')
-  await transporter.sendMail({from:process.env.SMTP_USER,to:mailTo,subject:`ai-stock-pick 推荐｜${data.date}`,html:`<h2>涨停复制推荐</h2><p>数据源：${data.source}</p><table border="1" cellpadding="8" cellspacing="0"><tr><th>股票</th><th>近10日涨停</th><th>前次涨停/回调</th><th>参考价</th><th>止盈</th><th>止损</th><th>触发条件</th></tr>${rows}</table><p>仅为策略筛选，不构成投资建议。</p>`})
-  lastPushDate=data.date; return {sent:true,to:mailTo.replace(/^(.{3}).*(@.*)$/,'$1***$2')}
-}
-const server=http.createServer(async(req,res)=>{
-  if(req.url==='/api/health') return json(res,200,{ok:true,service:'ai-stock-pick-data',version:'1.4.0-a-stock-data-primary',sources:{a_stock_data:true,tushare:Boolean(tushareToken),xiaoshi:Boolean(xiaoshiKey),serpapi:Boolean(serpApiKey),eastmoney:true}})
-  if(req.url==='/api/recommendations') try{return json(res,200,await recommendations())}catch(e){return json(res,500,{error:e.message})}
-  if(req.url==='/api/push') try{const data=await recommendations();return json(res,200,{...(await pushRecommendations(data)),count:data.recommendations.length,date:data.date})}catch(e){return json(res,500,{error:e.message})}
-  json(res,404,{error:'Not found'})
-})
-if(process.env.NODE_ENV!=='test'&&process.env.RUN_ONCE==='true'){
-  try{
-    const data=await recommendations(); const push=await pushRecommendations(data)
-    console.log(JSON.stringify({date:data.date,source:data.source,recommendations:data.recommendations,push},null,2))
-  }catch(e){console.error(e.message);process.exitCode=1}
-}else if(process.env.NODE_ENV!=='test'){
-  server.listen(port,()=>console.log(`ai-stock-pick data service: http://localhost:${port}`))
-  setInterval(async()=>{const now=new Date();if(now.getDay()===0||now.getDay()===6||now.getHours()<9)return;try{const data=await recommendations();await pushRecommendations(data)}catch(e){console.error('QQ mail push failed:',e.message)}},60*1000)
-}
+const pushRecommendations=createRecommendationMailer(config.mail)
+const health=()=>({ok:true,service:'ai-stock-pick-data',version:'1.5.0-layered-architecture',sources:{a_stock_data:true,tushare:Boolean(tushareToken),xiaoshi:Boolean(xiaoshiKey),serpapi:Boolean(serpApiKey),eastmoney:true}})
+const server=createHttpServer({health,recommendations,push:pushRecommendations})
+if(process.env.NODE_ENV!=='test')await runService({config,server,recommendations,push:pushRecommendations})
 export {dateValue,normalizeBars,isFreshTimestamp,isSessionTimestamp,limitThreshold,mapLimit}
 
