@@ -29,6 +29,7 @@ Apply the user’s original rules as the primary strategy:
 Do not equate “today rose to the limit” or “there is an announcement” with a valid setup. The sequence is:
 
 1. Build the union of all limit-up stocks across the last 10 trading sessions, including first board, consecutive board count, failed-board/open count, and every limit-up date. The hard gate is simple: at least one verified limit-up in any of those 10 sessions is enough for initial inclusion; repeated limit-ups are a preference and scoring bonus, not a requirement. Never build the candidate pool from current-day limit-ups alone.
+   Resolve the latest completed trading session first. On weekends, holidays, or before daily data finishes, use the previous completed session as `as_of`.
 2. Group the table by theme. Identify the event or policy that triggered the limit-up, then compare the event with the company’s main business. Direct main-business exposure is `正宗`; subsidiary/grandchild-company or loose concept exposure is `间接` and cannot receive full theme points.
 3. Prioritize new themes with multiple first-board stocks, then rank candidates by theme centrality, board position, stock character, circulating market value, and turnover. Do not select isolated stocks solely because their percentage change is high.
 4. From the prioritized pool, require a 1–5-session pullback after the prior limit-up, a 2%–18% drawdown, at least 35% recovery of the peak-to-low range, and no extension above 103% of the prior peak. Treat pullback volume at or below 90% of limit-up-day volume as confirmation, not a substitute for price repair.
@@ -45,7 +46,10 @@ The recommended order is `题材主线 → 涨停梯队 → 正宗性 → 股性
 - Do not recommend a stock that has not completed a real short pullback and rebound; a high price after continued acceleration is not “涨停复制”.
 - Do not recommend a stock whose latest three-session average turnover is below CNY 100 million or unavailable; downgrade it to observation.
 - Do not use data after the declared `as_of` timestamp. Apply A-share T+1, limit-up unbuyable, limit-down unsellable, suspension, transaction-cost, and slippage constraints when backtesting.
+- Normalize every K-line response by parsing its date, removing duplicates, sorting ascending, and dropping bars after `as_of` before calculating any sequence.
+- Require fresh quote and minute timestamps from the intended session; non-empty stale arrays do not satisfy market confirmation.
 - If Tushare `limit_list_d` is unavailable and only one-day `daily` threshold data is available, mark the 10-session gate unverified and return observation only unless another source supplies the complete history.
+- Handle main-board, ChiNext/STAR, Beijing, and ST limit rules explicitly. Exclude IPO/no-limit periods when the applicable limit cannot be verified.
 
 ## Data-source integration
 
@@ -106,7 +110,7 @@ Use Xiaoshi for quotes, K-lines, announcements, sectors, and incremental news (`
 
 - K-line gate: use at least 20 daily bars; compute the pullback from the prior strength peak, require a 2%–18% drawdown and a rebound above the pullback low.
 - Liquidity gate: require latest-three-session average turnover of at least CNY 100 million. Keep the raw amount, unit, calculation window, and provider auditable.
-- Volume gate: compare average post-limit pullback volume with limit-up-day volume; mark contraction at ≤90%. Treat missing or mismatched volume units as unverified.
+- Volume gate: compare volume from the limit-up day through the pullback trough only; mark contraction at ≤90%. Evaluate rebound-day expansion separately. Treat missing or mismatched units as unverified.
 - Event gate: fetch stock announcements and related news; record title, publication time, source, direction, and whether the evidence is direct or indirect. Missing event evidence means watch, not recommend.
 - Intraday gate: fetch Xiaoshi 1-minute bars when available. Confirm data freshness and bar count; never infer order-flow behavior from daily bars. Missing intraday data means watch.
 - Quote identity gate: request `market=CN&instrument=stock`, verify returned name/market/instrument, and record quote timestamp and freshness.
@@ -123,79 +127,4 @@ Return at most three rows sorted by the declared score. Each row must include sc
 - 明确给出止盈、止损和失效条件；止损优先放在回调低点下方，或使用声明过的风险上限。
 - Missing daily k-line, event evidence, quote freshness, or 1-minute data means `观察`, not `推荐`.
 - Use “计划价位”“触发条件”“失效条件”, not a naked buy/sell instruction. State fallback status and risks.
-
-## Structuring This Skill
-
-[TODO: Choose the structure that best fits this skill's purpose. Common patterns:
-
-**1. Workflow-Based** (best for sequential processes)
-- Works well when there are clear step-by-step procedures
-- Example: DOCX skill with "Workflow Decision Tree" -> "Reading" -> "Creating" -> "Editing"
-- Structure: ## Overview -> ## Workflow Decision Tree -> ## Step 1 -> ## Step 2...
-
-**2. Task-Based** (best for tool collections)
-- Works well when the skill offers different operations/capabilities
-- Example: PDF skill with "Quick Start" -> "Merge PDFs" -> "Split PDFs" -> "Extract Text"
-- Structure: ## Overview -> ## Quick Start -> ## Task Category 1 -> ## Task Category 2...
-
-**3. Reference/Guidelines** (best for standards or specifications)
-- Works well for brand guidelines, coding standards, or requirements
-- Example: Brand styling with "Brand Guidelines" -> "Colors" -> "Typography" -> "Features"
-- Structure: ## Overview -> ## Guidelines -> ## Specifications -> ## Usage...
-
-**4. Capabilities-Based** (best for integrated systems)
-- Works well when the skill provides multiple interrelated features
-- Example: Product Management with "Core Capabilities" -> numbered capability list
-- Structure: ## Overview -> ## Core Capabilities -> ### 1. Feature -> ### 2. Feature...
-
-Patterns can be mixed and matched as needed. Most skills combine patterns (e.g., start with task-based, add workflow for complex operations).
-
-Delete this entire "Structuring This Skill" section when done - it's just guidance.]
-
-## [TODO: Replace with the first main section based on chosen structure]
-
-[TODO: Add content here. See examples in existing skills:
-- Code samples for technical skills
-- Decision trees for complex workflows
-- Concrete examples with realistic user requests
-- References to scripts/templates/references as needed]
-
-## Resources (optional)
-
-Create only the resource directories this skill actually needs. Delete this section if no resources are required.
-
-### scripts/
-Executable code (Python/Bash/etc.) that can be run directly to perform specific operations.
-
-**Examples from other skills:**
-- PDF skill: `fill_fillable_fields.py`, `extract_form_field_info.py` - utilities for PDF manipulation
-- DOCX skill: `document.py`, `utilities.py` - Python modules for document processing
-
-**Appropriate for:** Python scripts, shell scripts, or any executable code that performs automation, data processing, or specific operations.
-
-**Note:** Scripts may be executed without loading into context, but can still be read by Codex for patching or environment adjustments.
-
-### references/
-Documentation and reference material intended to be loaded into context to inform Codex's process and thinking.
-
-**Examples from other skills:**
-- Product management: `communication.md`, `context_building.md` - detailed workflow guides
-- BigQuery: API reference documentation and query examples
-- Finance: Schema documentation, company policies
-
-**Appropriate for:** In-depth documentation, API references, database schemas, comprehensive guides, or any detailed information that Codex should reference while working.
-
-### assets/
-Files not intended to be loaded into context, but rather used within the output Codex produces.
-
-**Examples from other skills:**
-- Brand styling: PowerPoint template files (.pptx), logo files
-- Frontend builder: HTML/React boilerplate project directories
-- Typography: Font files (.ttf, .woff2)
-
-**Appropriate for:** Templates, boilerplate code, document templates, images, icons, fonts, or any files meant to be copied or used in the final output.
-
----
-
-**Not every skill requires all three types of resources.**
 
