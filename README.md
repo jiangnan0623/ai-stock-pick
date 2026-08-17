@@ -17,9 +17,10 @@ A 股“涨停复制”选股与 QQ 邮件推送工具。GitHub Actions 在工�
 - Tushare：涨停池和日线基础数据。
 - 小石金融：行情快照、20 日日线、公告和 1 分钟分时。
 - 东方财富：当小石行情快照或日线不可用时，作为独立的行情/K 线降级源。
+- SerpAPI（百度搜索）：补充候选股最近 7 天的实时金融新闻、政策和事件线索；新闻不替代行情或涨停事实。
 - Tushare `limit_list_d` 无权限时自动使用 `daily`，并由小石 K 线补齐近 10 日涨停记录。
 
-每只候选都会返回 `providers`，分别标明股票池、行情、日线、公告和分时实际采用的数据源，便于核验和排查降级情况。
+每只候选都会返回 `providers`，分别标明股票池、行情、日线、公告、新闻和分时实际采用的数据源；`related_news` 保留标题、摘要、链接、时间和来源。
 
 ## GitHub Actions
 
@@ -35,6 +36,7 @@ A 股“涨停复制”选股与 QQ 邮件推送工具。GitHub Actions 在工�
 
 - `TUSHARE_TOKEN`：Tushare Token。
 - `SHIZIXI_API_KEY`：小石 API Key。
+- `SERPAPI_KEY`：SerpAPI API Key，用于百度实时金融新闻检索。
 - `SMTP_USER`：用于发信的 QQ 邮箱。
 - `SMTP_PASS`：QQ 邮箱 SMTP 授权码，不是登录密码。
 - `MAIL_TO`：接收推荐结果的邮箱。
