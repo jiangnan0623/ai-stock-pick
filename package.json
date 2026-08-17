@@ -1,0 +1,2 @@
+{"type":"module","scripts":{"start":"node server.mjs"},"dependencies":{"nodemailer":"^7.0.0"}}
+
