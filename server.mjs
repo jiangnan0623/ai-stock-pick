@@ -6,6 +6,7 @@ const tushareToken=process.env.TUSHARE_TOKEN||''
 const tushareUrl=(process.env.TUSHARE_HTTP_URL||'http://api.tushare.pro').replace(/\/$/,'')
 const xiaoshiKey=process.env.SHIZIXI_API_KEY||''
 const xiaoshiBase='https://api.shizixi.com'
+const serpApiKey=process.env.SERPAPI_KEY||''
 const mailTo=process.env.MAIL_TO||''
 let lastPushDate=''
 
@@ -36,6 +37,16 @@ async function eastmoneyKline(code,limit=20){
   if(!r.ok) throw Error(`东方财富日线 HTTP ${r.status}`); const rows=(await r.json())?.data?.klines||[]
   return rows.map(v=>{const a=String(v).split(',');return {date:a[0],open:Number(a[1]),close:Number(a[2]),high:Number(a[3]),low:Number(a[4]),volume:Number(a[5]),amount:Number(a[6]),provider:'Eastmoney'}})
 }
+async function serpNews(code,name){
+  if(!serpApiKey) return []
+  const end=Math.floor(Date.now()/1000); const start=end-7*24*60*60
+  const params=new URLSearchParams({engine:'baidu',q:`${name} ${code} 股票 公告 政策 题材`,api_key:serpApiKey,ct:'2',rn:'10',gpc:`stf=${start},${end}|stftype=1`,no_cache:'true',output:'json'})
+  const r=await fetch(`https://serpapi.com/search.json?${params}`)
+  if(!r.ok) throw Error(`SerpAPI HTTP ${r.status}`)
+  const j=await r.json(); if(j.error) throw Error(`SerpAPI: ${j.error}`)
+  const seen=new Set(); const items=[...(j.news_results||[]),...(j.organic_results||[])]
+  return items.map(x=>({title:x.title||'',link:x.link||'',snippet:x.snippet||x.summary||'',source:x.source||x.displayed_link||'百度',published_at:x.date||x.published_date||null,provider:'SerpAPI/Baidu'})).filter(x=>x.title&&x.link&&!seen.has(x.link)&&seen.add(x.link)).slice(0,5)
+}
 async function recommendations(){
   const date=ymd(); let source='Tushare',fallback=false,fallbackReason=''; let rows=[]
   try{
@@ -56,12 +67,13 @@ async function recommendations(){
     }
   }
   const result=await Promise.all(rows.slice(0,20).map(async x=>{
-    const code=normalizeCode(x.ts_code); let quote=null,bars=[],announcements=[],minute=[]; const providers={pool:source,quote:null,kline:null,announcements:null,intraday:null}
+    const code=normalizeCode(x.ts_code); let quote=null,bars=[],announcements=[],minute=[],realtimeNews=[]; const providers={pool:source,quote:null,kline:null,announcements:null,news:null,intraday:null}
     try { const q=await xiaoshi(`/api/v3/market/quote/${code}?market=CN&instrument=stock`); quote=q?.data||q?.quote||q; if(quote)providers.quote='Xiaoshi' } catch {}
     if(!quote||!Number(quote?.price??quote?.last)){try{quote=await eastmoneyQuote(code);providers.quote='Eastmoney'}catch{}}
     try { const k=await xiaoshi(`/api/v3/data/kline/${code}?market=CN&instrument=stock&period=daily&adjust=none&limit=20`); bars=k?.data||k?.bars||[]; if(bars.length)providers.kline='Xiaoshi' } catch {}
     if(bars.length<20){try{bars=await eastmoneyKline(code,20);if(bars.length)providers.kline='Eastmoney'}catch{}}
     try { const a=await xiaoshi(`/api/v3/stock/announcements/${code}?days=365&page=1&page_size=10`); announcements=a?.data||[]; if(announcements.length)providers.announcements='Xiaoshi' } catch {}
+    try { realtimeNews=await serpNews(code,quote?.name||x.name||code); if(realtimeNews.length)providers.news='SerpAPI/Baidu' } catch {}
     try { const m=await xiaoshi(`/api/v3/stock/kline/${code}?market=CN&period=1min&adjust=none&limit=240`); minute=m?.data||m?.bars||[]; if(minute.length)providers.intraday='Xiaoshi' } catch {}
     const closes=bars.map(b=>Number(b.close??b.c??b[4])).filter(Number.isFinite)
     const price=Number(quote?.price??quote?.last??x.close); const codeText=String(x.ts_code||code)
@@ -74,9 +86,12 @@ async function recommendations(){
     const postLimitLow=postLimitBars.length?Math.min(...postLimitBars.map(b=>Number(b.low??b.close??b.c??b[3])).filter(Number.isFinite)):NaN
     const pullbackPct=limitPeak>0&&Number.isFinite(postLimitLow)?((limitPeak-postLimitLow)/limitPeak)*100:0
     const pullback=Boolean(priorLimit)&&postLimitBars.length>=1&&pullbackPct>=2&&pullbackPct<=18&&price>=postLimitLow*1.02
-    const theme=announcements.some(a=>!/(风险提示|异常波动|回购注销|董事会|会议决议)/.test(a.title||'')); const quoteOk=Number.isFinite(price)&&price>0
+    const generic=/(风险提示|异常波动|回购注销|董事会|会议决议|人事变动)/; const catalyst=/(中标|签约|政策|订单|业绩|重组|收购|涨价|产业|项目|获批|合作|投产)/
+    const announcementEvidence=announcements.find(a=>!generic.test(a.title||'')&&catalyst.test(`${a.title||''} ${a.summary||''}`))
+    const newsEvidence=realtimeNews.find(n=>catalyst.test(`${n.title} ${n.snippet}`)&&(String(n.title).includes(code)||String(n.snippet).includes(code)||String(n.title).includes(quote?.name||x.name||'')))
+    const theme=Boolean(announcementEvidence||newsEvidence); const quoteOk=Number.isFinite(price)&&price>0
     const total=(recent10?20:0)+(pullback?25:0)+(theme?25:8)+(quoteOk?15:0)+(minute.length>0?15:0); const eligible=recent10&&total>=78&&pullback&&theme&&quoteOk&&minute.length>0
-    return {code:x.ts_code,name:quote?.name||x.name||x.ts_code,price:quoteOk?price:null,limit_up_count:limitCount,limit_up_dates:limitDates,score:total,status:eligible?'推荐':'观察',source,providers,trade_date:x.trade_date,quote_timestamp:quote?.observed_at||quote?.timestamp||null,checks:{recent_limit_up:recent10?'已核验':'近10日无涨停',pullback:pullback?'涨停后回调通过':(priorLimit?'涨停后回调不通过':'只有当日涨停，尚无板后回调'),theme:theme?'有直接公告证据':'待正宗题材归因',quote:quoteOk?'已核验':'行情缺失',intraday:minute.length?'已确认':'待分时确认'},technical:{bars:closes.length,prior_limit_date:priorLimit?.date||null,post_limit_days:postLimitBars.length,pullback_low:Number.isFinite(postLimitLow)?postLimitLow:null,pullback_pct:Number(pullbackPct.toFixed(2)),minute_bars:minute.length},missing_fields:[...(recent10?[]:['近10日涨停历史']),...(pullback?[]:['涨停后的短暂回调与修复']),...(theme?[]:['正宗题材/触发事件归因']),...(quoteOk?[]:['行情快照']),...(minute.length?[]:['1分钟分时'])],trade_plan:quoteOk?{entry_trigger:'不追当日涨停；下一交易日回踩承接后重新放量再确认',entry_reference:price,take_profit_1:Number((price*1.08).toFixed(2)),take_profit_2:Number((price*1.15).toFixed(2)),stop_loss:Number.isFinite(postLimitLow)?Number((postLimitLow*.99).toFixed(2)):null,invalidation:['跌破涨停后回调低点','题材证据被证伪','板块退潮']} : null}
+    return {code:x.ts_code,name:quote?.name||x.name||x.ts_code,price:quoteOk?price:null,limit_up_count:limitCount,limit_up_dates:limitDates,score:total,status:eligible?'推荐':'观察',source,providers,trade_date:x.trade_date,quote_timestamp:quote?.observed_at||quote?.timestamp||null,theme_evidence:announcementEvidence?{type:'announcement',title:announcementEvidence.title,time:announcementEvidence.publish_time||announcementEvidence.date||null,source:providers.announcements}:newsEvidence?{type:'news',...newsEvidence}:null,related_news:realtimeNews,checks:{recent_limit_up:recent10?'已核验':'近10日无涨停',pullback:pullback?'涨停后回调通过':(priorLimit?'涨停后回调不通过':'只有当日涨停，尚无板后回调'),theme:theme?'有公告/实时新闻触发证据':'待正宗题材归因',quote:quoteOk?'已核验':'行情缺失',intraday:minute.length?'已确认':'待分时确认'},technical:{bars:closes.length,prior_limit_date:priorLimit?.date||null,post_limit_days:postLimitBars.length,pullback_low:Number.isFinite(postLimitLow)?postLimitLow:null,pullback_pct:Number(pullbackPct.toFixed(2)),minute_bars:minute.length},missing_fields:[...(recent10?[]:['近10日涨停历史']),...(pullback?[]:['涨停后的短暂回调与修复']),...(theme?[]:['正宗题材/触发事件归因']),...(quoteOk?[]:['行情快照']),...(minute.length?[]:['1分钟分时'])],trade_plan:quoteOk?{entry_trigger:'不追当日涨停；下一交易日回踩承接后重新放量再确认',entry_reference:price,take_profit_1:Number((price*1.08).toFixed(2)),take_profit_2:Number((price*1.15).toFixed(2)),stop_loss:Number.isFinite(postLimitLow)?Number((postLimitLow*.99).toFixed(2)):null,invalidation:['跌破涨停后回调低点','题材证据被证伪','板块退潮']} : null}
   }))
   return {date,source,fallback,fallbackReason,total:rows.length,recommendations:result.filter(x=>x.status==='推荐').slice(0,3),watch:result.filter(x=>x.status==='观察').slice(0,12),updatedAt:new Date().toISOString(),strategy:'ai-stock-pick'}
 }
@@ -90,7 +105,7 @@ async function pushRecommendations(data){
   lastPushDate=data.date; return {sent:true,to:mailTo.replace(/^(.{3}).*(@.*)$/,'$1***$2')}
 }
 const server=http.createServer(async(req,res)=>{
-  if(req.url==='/api/health') return json(res,200,{ok:true,service:'ai-stock-pick-data',version:'1.1.0-xiaoshi-enrichment'})
+  if(req.url==='/api/health') return json(res,200,{ok:true,service:'ai-stock-pick-data',version:'1.2.0-serpapi-news',sources:{tushare:Boolean(tushareToken),xiaoshi:Boolean(xiaoshiKey),serpapi:Boolean(serpApiKey),eastmoney:true}})
   if(req.url==='/api/recommendations') try{return json(res,200,await recommendations())}catch(e){return json(res,500,{error:e.message})}
   if(req.url==='/api/push') try{const data=await recommendations();return json(res,200,{...(await pushRecommendations(data)),count:data.recommendations.length,date:data.date})}catch(e){return json(res,500,{error:e.message})}
   json(res,404,{error:'Not found'})
