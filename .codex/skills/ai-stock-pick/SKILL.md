@@ -28,10 +28,10 @@ Apply the user’s original rules as the primary strategy:
 
 Do not equate “today rose to the limit” or “there is an announcement” with a valid setup. The sequence is:
 
-1. Build the last 10 trading-session limit-up table, including first board, consecutive board count, failed-board/open count, and the limit-up date. The hard gate is simple: at least one verified limit-up in any of those 10 sessions is enough for initial inclusion; repeated limit-ups are a preference and scoring bonus, not a requirement. A single current-day `daily` threshold is only an approximate pool and cannot satisfy the 10-session gate by itself.
+1. Build the union of all limit-up stocks across the last 10 trading sessions, including first board, consecutive board count, failed-board/open count, and every limit-up date. The hard gate is simple: at least one verified limit-up in any of those 10 sessions is enough for initial inclusion; repeated limit-ups are a preference and scoring bonus, not a requirement. Never build the candidate pool from current-day limit-ups alone.
 2. Group the table by theme. Identify the event or policy that triggered the limit-up, then compare the event with the company’s main business. Direct main-business exposure is `正宗`; subsidiary/grandchild-company or loose concept exposure is `间接` and cannot receive full theme points.
 3. Prioritize new themes with multiple first-board stocks, then rank candidates by theme centrality, board position, stock character, circulating market value, and turnover. Do not select isolated stocks solely because their percentage change is high.
-4. From the prioritized pool, require a short pullback after the prior limit-up strength, followed by reclaim/repair. Reject extended moves, deep breaks, and stocks that have not actually pulled back.
+4. From the prioritized pool, require a 1–5-session pullback after the prior limit-up, a 2%–18% drawdown, at least 35% recovery of the peak-to-low range, and no extension above 103% of the prior peak. Treat pullback volume at or below 90% of limit-up-day volume as confirmation, not a substitute for price repair.
 5. Use intraday data only to confirm opening strength, volume-price repair, support, and re-sealing; do not use it to manufacture a theme or replace the 10-session review.
 
 The recommended order is `题材主线 → 涨停梯队 → 正宗性 → 股性/市值/成交量 → 回调复制 → 分时确认`, not price-first ranking.
@@ -43,6 +43,8 @@ The recommended order is `题材主线 → 涨停梯队 → 正宗性 → 股性
 - Do not award full theme points to a company whose main business does not directly cover the claimed concept; label it indirect and downgrade it.
 - Do not recommend an isolated first-board stock when the same theme has no breadth, no clear leader/front-rank structure, or no identifiable trigger event.
 - Do not recommend a stock that has not completed a real short pullback and rebound; a high price after continued acceleration is not “涨停复制”.
+- Do not recommend a stock whose latest three-session average turnover is below CNY 100 million or unavailable; downgrade it to observation.
+- Do not use data after the declared `as_of` timestamp. Apply A-share T+1, limit-up unbuyable, limit-down unsellable, suspension, transaction-cost, and slippage constraints when backtesting.
 - If Tushare `limit_list_d` is unavailable and only one-day `daily` threshold data is available, mark the 10-session gate unverified and return observation only unless another source supplies the complete history.
 
 ## Data-source integration
@@ -86,7 +88,7 @@ Return no more than three A-share candidates as a research shortlist. Require re
 ## Core workflow
 
 1. Confirm at least one limit-up in the last 10 trading sessions; prefer repeated limit-ups and stable closing behavior.
-2. Confirm a 2%–18% short pullback after prior strength, preferably with shrinking volume, followed by a reclaim of the pullback low.
+2. Confirm a 1–5-session, 2%–18% short pullback after prior strength, preferably with shrinking volume, followed by at least 35% peak-to-low recovery.
 3. Identify the theme from company business, sectors/concepts, announcements, and news. Separate direct-main-business evidence from indirect association.
 4. Score stock character from limit-up frequency, board continuity, recognizability, and failed-board behavior.
 5. Check liquidity, market cap, turnover, volume ratio, quote freshness, and intraday evidence.
@@ -94,7 +96,7 @@ Return no more than three A-share candidates as a research shortlist. Require re
 
 ## Score and trade-plan contract
 
-Weight theme/event 25%, pullback/rebound 25%, stock character 20%, liquidity/market-cap fit 15%, current-market confirmation 15%.
+Weight theme/event 25%, pullback/rebound 25%, stock character 20%, liquidity/market-cap fit 15%, current-market confirmation 15%. Emit all five component scores; do not hide them behind a single total.
 
 For each of at most three recommendations output: entry trigger, entry reference price and timestamp, take-profit 1/2 as planning levels, stop-loss below pullback low or a declared cap, invalidation conditions, evidence completeness, and missing fields. Use wording such as “计划价位/触发条件”, never a naked buy/sell command.
 
@@ -103,6 +105,8 @@ Use Xiaoshi for quotes, K-lines, announcements, sectors, and incremental news (`
 ## Evidence gates
 
 - K-line gate: use at least 20 daily bars; compute the pullback from the prior strength peak, require a 2%–18% drawdown and a rebound above the pullback low.
+- Liquidity gate: require latest-three-session average turnover of at least CNY 100 million. Keep the raw amount, unit, calculation window, and provider auditable.
+- Volume gate: compare average post-limit pullback volume with limit-up-day volume; mark contraction at ≤90%. Treat missing or mismatched volume units as unverified.
 - Event gate: fetch stock announcements and related news; record title, publication time, source, direction, and whether the evidence is direct or indirect. Missing event evidence means watch, not recommend.
 - Intraday gate: fetch Xiaoshi 1-minute bars when available. Confirm data freshness and bar count; never infer order-flow behavior from daily bars. Missing intraday data means watch.
 - Quote identity gate: request `market=CN&instrument=stock`, verify returned name/market/instrument, and record quote timestamp and freshness.
