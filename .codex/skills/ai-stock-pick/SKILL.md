@@ -45,7 +45,7 @@ The recommended order is `题材主线 → 涨停梯队 → 正宗性 → 股性
 - Do not recommend a stock that has not completed a real short pullback and rebound; a high price after continued acceleration is not “涨停复制”.
 - If Tushare `limit_list_d` is unavailable and only one-day `daily` threshold data is available, mark the 10-session gate unverified and return observation only unless another source supplies the complete history.
 
-## Tushare and Xiaoshi integration
+## Data-source integration
 
 Keep credentials outside this Skill in environment variables or a secret manager. Never print or commit tokens/API keys.
 
@@ -67,6 +67,13 @@ Keep credentials outside this Skill in environment variables or a secret manager
 - Use `/api/v3/data/kline/{code}` for at least 20 daily bars, `/api/v3/stock/kline/{code}` for 1-minute bars, and `/api/v3/stock/announcements/{code}` for company announcements.
 - Read news incrementally with `after_id`; record the returned event ID, title, time, source, direction, and affected stock.
 - Handle HTTP 429 by waiting for `Retry-After`; do not label it as a software defect.
+
+### SerpAPI/Baidu real-time news enrichment
+
+- Read `SERPAPI_KEY`; query `engine=baidu` with the exact stock name and code plus `股票 公告 政策 题材`, Simplified Chinese output, and a latest-seven-day time filter.
+- Keep at most five deduplicated items and preserve title, snippet, link, publication time, original source, and `provider=SerpAPI/Baidu`.
+- Require an exact stock-name/code match plus a catalyst keyword before news can support the event gate, then compare the event with the company’s main business to classify it as `正宗` or `间接`.
+- Never use search news as quote, K-line, limit-up, market-cap, turnover, or intraday evidence. Missing credentials/results must degrade cleanly to Xiaoshi announcements/news.
 
 ### Source metadata contract
 
