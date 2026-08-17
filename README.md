@@ -18,11 +18,14 @@ A 股“涨停复制”选股与 QQ 邮件推送工具。GitHub Actions 在工�
 
 ## 数据源
 
-- Tushare：涨停池和日线基础数据。
+- a-stock-data（最高优先级）：东财 push2ex 近 10 日涨停池、腾讯批量行情/市值/前复权日 K、百度备用日 K、同花顺涨停原因。
+- Tushare：当 a-stock-data 不可用时，降级获取涨停池和日线基础数据。
 - 小石金融：行情快照、20 日日线、公告和 1 分钟分时。
 - 东方财富：当小石行情快照或日线不可用时，作为独立的行情/K 线降级源。
 - SerpAPI（百度搜索）：补充候选股最近 7 天的实时金融新闻、政策和事件线索；新闻不替代行情或涨停事实。
 - Tushare `limit_list_d` 无权限时自动使用 `daily`，并由小石 K 线补齐近 10 日涨停记录。
+
+`a-stock-data` 接入采用 Node.js 适配器，不需要安装 Python 或 mootdx；东财端点已串行限流。上游项目采用 Apache License 2.0，归因见 `THIRD_PARTY_NOTICES.md`。
 
 每只候选都会返回 `providers`，分别标明股票池、行情、日线、公告、新闻和分时实际采用的数据源；`related_news` 保留标题、摘要、链接、时间和来源。
 
