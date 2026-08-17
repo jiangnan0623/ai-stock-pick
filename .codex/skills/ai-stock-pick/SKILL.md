@@ -5,6 +5,14 @@ description: "Screen A-share stocks using a limit-up copy strategy: recent 10-da
 
 # AI Stock Pick
 
+## Architecture contract
+
+- Keep deterministic market rules and normalization in `src/domain`; they must not read environment variables or call remote services.
+- Keep source-specific HTTP parsing and fallback adapters in `src/infrastructure/providers`.
+- Keep scheduling and run-once behavior in `src/application`, and HTTP/email transport in `src/delivery`.
+- Treat `server.mjs` as the composition root. Do not add new provider parsing, SMTP rendering, or HTTP routing directly to it.
+- Preserve provider metadata and downgrade semantics across layer boundaries; architecture cleanup must not relax any hard recommendation gate.
+
 ## User-defined trading system
 
 Apply the user’s original rules as the primary strategy:
