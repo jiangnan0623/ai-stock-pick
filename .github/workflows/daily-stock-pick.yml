@@ -1,0 +1,32 @@
+name: Daily AI Stock Pick
+
+on:
+  schedule:
+    - cron: "0 9 * * 1-5"
+      timezone: "Asia/Shanghai"
+  workflow_dispatch:
+
+jobs:
+  stock-pick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --omit=dev
+      - name: Analyze and email recommendations
+        run: node server.mjs
+        env:
+          RUN_ONCE: "true"
+          TZ: Asia/Shanghai
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+          SHIZIXI_API_KEY: ${{ secrets.SHIZIXI_API_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+
