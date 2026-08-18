@@ -47,7 +47,7 @@ export function buildThemeStats(rows){
 export function assessThemeAuthenticity(theme,profile={}){
   const business=String(`${profile.main_business||''} ${profile.business_scope||''}`).replace(/\s+/g,'')
   const coreTheme=extractCoreTheme(theme).replace(/概念|板块|题材|业务|产品/g,'')
-  const aliases={商业航天:['商业航天','航天'],人工智能:['人工智能','AI','智能'],机器人:['机器人','机械臂'],固态电池:['固态电池','电池'],低空经济:['低空经济','低空','航空'],电网设备:['电网设备','电网','输配电']}
+  const aliases={商业航天:['商业航天','航天'],人工智能:['人工智能','AI','智能'],机器人:['机器人','机械臂'],固态电池:['固态电池','电池'],低空经济:['低空经济','低空','航空'],电网设备:['电网设备','电网','输配电','低压电器','配电'],电子特气:['电子特气','特种气体','电子气体','六氟化钨'],工业气体:['工业气体','气体','空分']}
   const variants=aliases[coreTheme]||[coreTheme];const matched=variants.filter(x=>x.length>=2&&business.includes(x))
   return {level:business&&matched.length?'direct':'unverified',core_theme:coreTheme,matched_keywords:matched,business_available:Boolean(business)}
 }
