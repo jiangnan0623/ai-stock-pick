@@ -1,6 +1,7 @@
 export const ymd=()=>new Date().toISOString().slice(0,10).replaceAll('-','')
 export const daysAgoYmd=days=>{const d=new Date();d.setUTCDate(d.getUTCDate()-days);return d.toISOString().slice(0,10).replaceAll('-','')}
 export const dateValue=v=>{const s=String(v||'').replace(/\D/g,'').slice(0,8);return s.length===8?Number(s):0}
+export const isoDateLike=value=>{const digits=String(value||'').replace(/\D/g,'').slice(0,8);if(digits.length===8)return `${digits.slice(0,4)}-${digits.slice(4,6)}-${digits.slice(6,8)}`;const parsed=Date.parse(String(value||''));return Number.isFinite(parsed)?new Date(parsed).toISOString().slice(0,10):null}
 export const normalizeCode=v=>String(v||'').replace(/^(sh|sz|bj)/i,'').replace(/\.(SZ|SH|BJ)$/i,'')
 export const normalizeBars=bars=>[...new Map((Array.isArray(bars)?bars:[]).map(b=>[dateValue(b.trade_date||b.date||b.datetime||b.time),b]).filter(([d])=>d)).entries()].sort((a,b)=>a[0]-b[0]).map(([,b])=>b)
 export const isFreshTimestamp=(value,maxHours=18)=>{const t=Date.parse(value);return Number.isFinite(t)&&Date.now()-t>=0&&Date.now()-t<=maxHours*3600000}
@@ -53,5 +54,6 @@ export function assessThemeAuthenticity(theme,profile={}){
 export const scoreThemeStructure=stats=>stats?.latest_first_boards>=2&&stats?.first_seen===stats?.latest_date?5:(stats?.max_board>=2?3:(stats?.stocks>=3?2:0))
 export const marketCapFitScore=value=>{const cap=Number(value);return !Number.isFinite(cap)||cap<=0?0:(cap>=20&&cap<=200?5:(cap>=10&&cap<=300?3:1))}
 export const isRecommendationEligible=({technicalPass,total,themeQualified,intradayFresh})=>Boolean(technicalPass&&total>=78&&themeQualified&&intradayFresh)
+export const hasVerifiedCatalyst=({announcementEvidence,newsEvidence}={})=>Boolean(announcementEvidence||newsEvidence)
 export async function mapLimit(items,limit,fn){const out=new Array(items.length);let next=0;await Promise.all(Array.from({length:Math.min(limit,items.length)},async()=>{while(next<items.length){const i=next++;out[i]=await fn(items[i],i)}}));return out}
 
