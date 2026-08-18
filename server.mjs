@@ -1,5 +1,5 @@
 import {loadRuntimeConfig} from './src/config/runtime.mjs'
-import {ymd,daysAgoYmd,dateValue,normalizeCode,normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,limitThreshold,toTsCode,normalizeTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isRecommendationEligible,mapLimit} from './src/domain/market-rules.mjs'
+import {ymd,daysAgoYmd,dateValue,normalizeCode,normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,isoDateLike,limitThreshold,toTsCode,normalizeTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isRecommendationEligible,hasVerifiedCatalyst,mapLimit} from './src/domain/market-rules.mjs'
 import {aStockLimitPool,aStockTencentQuotes,aStockTencentKline,aStockEastmoneyKline,aStockBaiduKline,aStockThsLimitReasons} from './src/infrastructure/providers/a-stock-data.mjs'
 import {createMarketClients} from './src/infrastructure/providers/market-clients.mjs'
 import {createRecommendationMailer} from './src/delivery/email.mjs'
@@ -92,14 +92,15 @@ async function recommendations(){
       try { const m=await xiaoshi(`/api/v3/stock/kline/${code}?market=CN&period=1min&adjust=none&limit=240`); minute=Array.isArray(m?.data)?m.data:(Array.isArray(m?.bars)?m.bars:[]); if(minute.length)providers.intraday='Xiaoshi' } catch {}
     }
     const generic=/(风险提示|异常波动|回购注销|董事会|会议决议|人事变动)/; const catalyst=/(中标|签约|政策|订单|业绩|重组|收购|涨价|产业|项目|获批|合作|投产)/
-    const limitTime=Date.parse(String(priorLimit?.date||'').replace(/^(\d{4})(\d{2})(\d{2})$/,'$1-$2-$3')); const nearLimit=d=>{const t=Date.parse(d);return Number.isFinite(t)&&Number.isFinite(limitTime)&&Math.abs(t-limitTime)<=14*86400000}
+    const limitTime=Date.parse(isoDateLike(priorLimit?.date)||''); const nearLimit=d=>{const t=Date.parse(isoDateLike(d)||'');return Number.isFinite(t)&&Number.isFinite(limitTime)&&Math.abs(t-limitTime)<=14*86400000}
     const companyName=quote?.name||x.name||''
     const announcementEvidence=announcements.find(a=>nearLimit(a.publish_time||a.date||a.ann_date)&&!generic.test(a.title||'')&&catalyst.test(`${a.title||''} ${a.summary||''}`))
     const newsEvidence=realtimeNews.find(n=>nearLimit(n.published_at)&&catalyst.test(`${n.title} ${n.snippet}`)&&(String(n.title).includes(code)||String(n.snippet).includes(code)||(companyName&&String(n.title).includes(companyName))))
     const poolThemeEvidence=x.reason?{type:'limit-up-reason',title:x.reason,time:x.pool_limit_dates?.at(-1)||null,source:providers.theme,board_type:x.board_type||null,seal_rate:Number.isFinite(x.seal_rate)?x.seal_rate:null}:null
     const themeBreadth=themeStats.get(normalizeTheme(x.reason))||{theme:normalizeTheme(x.reason)||null,stocks:0,first_boards:0,max_board:0,latest_stocks:0,latest_first_boards:0,first_seen:null,latest_date:null}
     const authenticity=assessThemeAuthenticity(x.reason,companyProfile)
-    const theme=Boolean(poolThemeEvidence||announcementEvidence||newsEvidence); const themeQualified=theme&&themeBreadth.latest_stocks>=2&&authenticity.level==='direct'
+    const reasonEventVerified=Boolean(poolThemeEvidence&&catalyst.test(String(poolThemeEvidence.title||''))&&Array.isArray(x.pool_limit_dates)&&x.pool_limit_dates.some(d=>dateValue(d)===dateValue(priorLimit?.date)))
+    const eventVerified=hasVerifiedCatalyst({announcementEvidence,newsEvidence})||reasonEventVerified; const theme=Boolean(poolThemeEvidence||eventVerified); const themeQualified=eventVerified&&themeBreadth.latest_stocks>=2&&authenticity.level==='direct'
     const minuteTimestamp=minute.at(-1)?.datetime||minute.at(-1)?.time||minute.at(-1)?.timestamp||minute.at(-1)?.date; const intradayFresh=minute.length>0&&isMarketTimestampFresh(minuteTimestamp,date)
     const themeStructureScore=scoreThemeStructure(themeBreadth);const capScore=marketCapFitScore(quote?.float_mcap_yi); const openTimes=Number(x.open_times); const scoreBreakdown={theme_event:themeQualified?20+themeStructureScore:(theme?10:0),pullback_rebound:pullback?20+(volumeContracted?5:0):0,stock_character:Math.min(20,8+limitCount*4+(Number.isFinite(openTimes)?Math.max(0,4-openTimes):0)),liquidity_market_cap:liquid?10+capScore:0,market_confirmation:quoteOk&&intradayFresh?15:0}
     const total=Object.values(scoreBreakdown).reduce((a,b)=>a+b,0); const eligible=isRecommendationEligible({technicalPass,total,themeQualified,intradayFresh})
