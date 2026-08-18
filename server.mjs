@@ -78,12 +78,12 @@ async function recommendations(){
     const volumeContracted=Number.isFinite(limitVolume)&&limitVolume>0&&Number.isFinite(pullbackAvgVolume)?pullbackAvgVolume<=limitVolume*.9:false
     const recoveryRatio=limitPeak>postLimitLow?Math.max(0,Math.min(1,(price-postLimitLow)/(limitPeak-postLimitLow))):0
     const shortWindow=pullbackWindowBars.length>=1&&pullbackWindowBars.length<=5
-    const pullback=Boolean(priorLimit)&&shortWindow&&pullbackPct>=2&&pullbackPct<=18&&recoveryRatio>=.35&&price<=limitPeak*1.03
+    const pullback=Boolean(priorLimit)&&shortWindow&&pullbackPct>=2&&pullbackPct<=18&&recoveryRatio>=.30&&price<=limitPeak*1.03
     const quoteTimestamp=quote?.observed_at||quote?.timestamp; const quoteIdentity=normalizeCode(quote?.symbol||quote?.code||code)===code&&(!quote?.market||quote.market==='CN')&&(!quote?.instrument||quote.instrument==='stock')
     const quoteFresh=isMarketTimestampFresh(quoteTimestamp,date); const quoteOk=Number.isFinite(price)&&price>0&&quoteFresh&&quoteIdentity
     if(poolVerified&&recent10&&pullback&&quoteOk)try { liquidityBars=await aStockEastmoneyKline(code,3); if(liquidityBars.length)providers.liquidity='a-stock-data/Eastmoney (CNY)' } catch {}
     const recentAmounts=liquidityBars.slice(-3).map(barAmount).filter(v=>Number.isFinite(v)&&v>0); const avgAmount3=recentAmounts.length===3?recentAmounts.reduce((a,b)=>a+b,0)/recentAmounts.length:NaN
-    const liquid=Number.isFinite(avgAmount3)&&avgAmount3>=100000000
+    const liquid=Number.isFinite(avgAmount3)&&avgAmount3>=80000000
     const technicalPass=poolVerified&&recent10&&pullback&&liquid&&quoteOk
     if(technicalPass){
       try { companyProfile=(await tushare('stock_company',{ts_code:toTsCode(x.ts_code)},'ts_code,main_business,business_scope'))[0]||{}; if(companyProfile.main_business||companyProfile.business_scope)providers.company='Tushare stock_company' } catch {}
@@ -100,7 +100,7 @@ async function recommendations(){
     const themeBreadth=themeStats.get(normalizeTheme(x.reason))||{theme:normalizeTheme(x.reason)||null,stocks:0,first_boards:0,max_board:0,latest_stocks:0,latest_first_boards:0,first_seen:null,latest_date:null}
     const authenticity=assessThemeAuthenticity(x.reason,companyProfile)
     const reasonEventVerified=Boolean(poolThemeEvidence&&catalyst.test(String(poolThemeEvidence.title||''))&&Array.isArray(x.pool_limit_dates)&&x.pool_limit_dates.some(d=>dateValue(d)===dateValue(priorLimit?.date)))
-    const eventVerified=hasVerifiedCatalyst({announcementEvidence,newsEvidence})||reasonEventVerified; const theme=Boolean(poolThemeEvidence||eventVerified); const themeQualified=eventVerified&&themeBreadth.latest_stocks>=2&&authenticity.level==='direct'
+    const eventVerified=hasVerifiedCatalyst({announcementEvidence,newsEvidence})||reasonEventVerified; const theme=Boolean(poolThemeEvidence||eventVerified); const themeBreadthQualified=themeBreadth.latest_stocks>=2||themeBreadth.stocks>=2; const themeQualified=eventVerified&&themeBreadthQualified&&authenticity.level==='direct'
     const minuteTimestamp=minute.at(-1)?.datetime||minute.at(-1)?.time||minute.at(-1)?.timestamp||minute.at(-1)?.date; const intradayFresh=minute.length>0&&isMarketTimestampFresh(minuteTimestamp,date)
     const themeStructureScore=scoreThemeStructure(themeBreadth);const capScore=marketCapFitScore(quote?.float_mcap_yi); const openTimes=Number(x.open_times); const scoreBreakdown={theme_event:themeQualified?20+themeStructureScore:(theme?10:0),pullback_rebound:pullback?20+(volumeContracted?5:0):0,stock_character:Math.min(20,8+limitCount*4+(Number.isFinite(openTimes)?Math.max(0,4-openTimes):0)),liquidity_market_cap:liquid?10+capScore:0,market_confirmation:quoteOk&&intradayFresh?15:0}
     const total=Object.values(scoreBreakdown).reduce((a,b)=>a+b,0); const eligible=isRecommendationEligible({technicalPass,total,themeQualified,intradayFresh})
