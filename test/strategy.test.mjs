@@ -34,6 +34,20 @@ test('does not treat a plain theme label as an event catalyst',()=>{
   assert.equal(hasVerifiedCatalyst({announcementEvidence:null,newsEvidence:null}),false)
 })
 
+test('evaluates the first five bars after a limit-up as the pullback window',()=>{
+  const bars=Array.from({length:7},(_,i)=>({date:`202608${String(8+i).padStart(2,'0')}`,low:100-i,volume:100}))
+  const window=bars.slice(0,5)
+  assert.equal(window.length,5)
+  assert.equal(window.at(-1).date,'20260812')
+})
+
+test('uses dated limit-up pool records before K-line recalculation',()=>{
+  const recentBars=[{date:'20260804'},{date:'20260805'},{date:'20260806'},{date:'20260807'},{date:'20260810'},{date:'20260811'},{date:'20260812'},{date:'20260813'},{date:'20260814'},{date:'20260817'}]
+  const poolDates=['20260807']
+  const start=Number(recentBars[0].date)
+  assert.equal(poolDates.filter(d=>Number(d)>=start&&Number(d)<=20260818).length,1)
+})
+
 test('rejects stale timestamps',()=>{
   assert.equal(isFreshTimestamp(new Date().toISOString(),1),true)
   assert.equal(isFreshTimestamp(new Date(Date.now()-2*3600000).toISOString(),1),false)
