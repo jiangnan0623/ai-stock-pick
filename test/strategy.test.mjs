@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-const {normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,limitThreshold,extractCoreTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isRecommendationEligible,mapLimit}=await import('../src/domain/market-rules.mjs')
+const {normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,isoDateLike,hasVerifiedCatalyst,limitThreshold,extractCoreTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isRecommendationEligible,mapLimit}=await import('../src/domain/market-rules.mjs')
 const {loadRuntimeConfig}=await import('../src/config/runtime.mjs')
 const {aStockTencentQuotes,parseTencentTimestamp}=await import('../a-stock-data.mjs')
 const {buildRecommendationEmail}=await import('../src/delivery/email.mjs')
@@ -17,6 +17,21 @@ test('uses board-specific and ST limit thresholds',()=>{
   assert.equal(limitThreshold('920001.BJ','普通股份'),29.5)
   assert.equal(limitThreshold('920001','普通股份'),29.5)
   assert.equal(limitThreshold('600000.SH','*ST示例'),4.8)
+})
+
+test('normalizes compact dates used by announcements and news',()=>{
+  assert.equal(isoDateLike('20260814'),'2026-08-14')
+  assert.equal(isoDateLike('2026-08-14T10:00:00+08:00'),'2026-08-14')
+  assert.equal(isoDateLike('not-a-date'),null)
+})
+
+test('requires a verified announcement or news catalyst',()=>{
+  assert.equal(hasVerifiedCatalyst({announcementEvidence:null,newsEvidence:null}),false)
+  assert.equal(hasVerifiedCatalyst({announcementEvidence:{title:'订单'},newsEvidence:null}),true)
+})
+
+test('does not treat a plain theme label as an event catalyst',()=>{
+  assert.equal(hasVerifiedCatalyst({announcementEvidence:null,newsEvidence:null}),false)
 })
 
 test('rejects stale timestamps',()=>{
