@@ -37,7 +37,7 @@ A 股“涨停复制”选股与 QQ 邮件推送工具。GitHub Actions 在工�
 
 工作流文件：`.github/workflows/daily-stock-pick.yml`
 
-- 自动执行：周一至周五，`Asia/Shanghai` 09:00。
+- 自动执行：周一至周五，`Asia/Shanghai` 09:05；避开整点高峰，GitHub 仍可能因平台负载延迟。
 - 手动执行：进入仓库 `Actions → Daily AI Stock Pick → Run workflow`。
 - 云端运行：使用 Node.js 24、`actions/checkout@v7`、`actions/setup-node@v7`。
 
