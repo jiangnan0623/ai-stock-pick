@@ -83,6 +83,11 @@ test('requires theme breadth and verifies direct main-business coverage',()=>{
   assert.equal(scoreThemeStructure(stats.get('商业航天')),5)
 })
 
+test('recognizes related main-business aliases for electrical and gas themes',()=>{
+  assert.equal(assessThemeAuthenticity('电网设备',{main_business:'低压电器及配电产品研发销售'}).level,'direct')
+  assert.equal(assessThemeAuthenticity('电子特气',{main_business:'电子特种气体研发生产'}).level,'direct')
+})
+
 test('enforces live-session freshness while allowing completed-session data',()=>{
   assert.equal(isMarketTimestampFresh('2026-08-17T10:00:00+08:00','20260817',new Date('2026-08-17T10:10:00+08:00')),true)
   assert.equal(isMarketTimestampFresh('2026-08-17T09:30:00+08:00','20260817',new Date('2026-08-17T10:10:00+08:00')),false)
