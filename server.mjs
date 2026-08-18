@@ -66,18 +66,18 @@ async function recommendations(){
     const limitPct=limitThreshold(codeText,quote?.name||x.name)
     const historyBars=bars.slice(-11); const recentBars=historyBars.slice(-10)
     const limitHits=recentBars.map((b,i)=>{const close=Number(b.close??b.c??b[4]);const prev=Number(historyBars[i]?.close??historyBars[i]?.c??historyBars[i]?.[4]);const pct=prev>0?(close/prev-1)*100:Number(b.pct_chg??b.change_pct??b.pct??0);return {index:i,date:b.trade_date||b.date,pct,isLimit:pct>=limitPct}}).filter(x=>x.isLimit)
-    const limitDates=limitHits.map(x=>x.date).filter(Boolean); const limitCount=limitDates.length; const recent10=limitCount>0
-    const priorLimit=[...limitHits].reverse().find(x=>x.index<recentBars.length-1); const postLimitBars=priorLimit?recentBars.slice(priorLimit.index+1):[]
+    const limitDates=limitHits.map(x=>x.date).filter(Boolean); const poolLimitDates=Array.isArray(x.pool_limit_dates)?x.pool_limit_dates.filter(Boolean):[]; const recentStart=dateValue(recentBars[0]?.trade_date||recentBars[0]?.date); const poolRecentDates=poolLimitDates.filter(d=>dateValue(d)>=recentStart&&dateValue(d)<=Number(date)); const limitCount=Math.max(limitDates.length,poolRecentDates.length); const recent10=poolRecentDates.length>0||limitCount>0
+    const klinePriorLimit=[...limitHits].reverse().find(x=>x.index<recentBars.length-1); const poolPriorDate=poolRecentDates.at(-1); const poolPriorIndex=poolPriorDate?recentBars.findIndex(b=>dateValue(b.trade_date||b.date)===dateValue(poolPriorDate)): -1; const priorLimit=klinePriorLimit|| (poolPriorIndex>=0?{index:poolPriorIndex,date:poolPriorDate,pct:limitPct,isLimit:true}:null); const postLimitBars=priorLimit?recentBars.slice(priorLimit.index+1):[]; const pullbackWindowBars=postLimitBars.slice(0,5)
     const limitBar=priorLimit?recentBars[priorLimit.index]:null; const limitPeak=Number(limitBar?.high??limitBar?.close??limitBar?.c??limitBar?.[2])
-    const postLimitLow=postLimitBars.length?Math.min(...postLimitBars.map(b=>Number(b.low??b.close??b.c??b[3])).filter(Number.isFinite)):NaN
+    const postLimitLow=pullbackWindowBars.length?Math.min(...pullbackWindowBars.map(b=>Number(b.low??b.close??b.c??b[3])).filter(Number.isFinite)):NaN
     const pullbackPct=limitPeak>0&&Number.isFinite(postLimitLow)?((limitPeak-postLimitLow)/limitPeak)*100:0
     const barVolume=b=>Number(b?.volume??b?.vol??b?.v??b?.[5]); const barAmount=b=>Number(b?.amount??b?.turnover??b?.[6])
-    const troughIndex=postLimitBars.findIndex(b=>Number(b.low??b.close??b.c??b[3])===postLimitLow); const pullbackLeg=troughIndex>=0?postLimitBars.slice(0,troughIndex+1):postLimitBars
+    const troughIndex=pullbackWindowBars.findIndex(b=>Number(b.low??b.close??b.c??b[3])===postLimitLow); const pullbackLeg=troughIndex>=0?pullbackWindowBars.slice(0,troughIndex+1):pullbackWindowBars
     const limitVolume=barVolume(limitBar); const postVolumes=pullbackLeg.map(barVolume).filter(v=>Number.isFinite(v)&&v>0)
     const pullbackAvgVolume=postVolumes.length?postVolumes.reduce((a,b)=>a+b,0)/postVolumes.length:NaN
     const volumeContracted=Number.isFinite(limitVolume)&&limitVolume>0&&Number.isFinite(pullbackAvgVolume)?pullbackAvgVolume<=limitVolume*.9:false
     const recoveryRatio=limitPeak>postLimitLow?Math.max(0,Math.min(1,(price-postLimitLow)/(limitPeak-postLimitLow))):0
-    const shortWindow=postLimitBars.length>=1&&postLimitBars.length<=5
+    const shortWindow=pullbackWindowBars.length>=1&&pullbackWindowBars.length<=5
     const pullback=Boolean(priorLimit)&&shortWindow&&pullbackPct>=2&&pullbackPct<=18&&recoveryRatio>=.35&&price<=limitPeak*1.03
     const quoteTimestamp=quote?.observed_at||quote?.timestamp; const quoteIdentity=normalizeCode(quote?.symbol||quote?.code||code)===code&&(!quote?.market||quote.market==='CN')&&(!quote?.instrument||quote.instrument==='stock')
     const quoteFresh=isMarketTimestampFresh(quoteTimestamp,date); const quoteOk=Number.isFinite(price)&&price>0&&quoteFresh&&quoteIdentity
