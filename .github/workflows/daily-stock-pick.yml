@@ -2,12 +2,16 @@ name: Daily AI Stock Pick
 
 on:
   schedule:
-    - cron: "0 9 * * 1-5"
+    # Avoid the top-of-hour Actions queue; run at 09:05 Beijing time on weekdays.
+    - cron: "5 9 * * 1-5"
       timezone: "Asia/Shanghai"
   workflow_dispatch:
 
 jobs:
   stock-pick:
+    concurrency:
+      group: daily-stock-pick
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
