@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-const {normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,isoDateLike,hasVerifiedCatalyst,limitThreshold,extractCoreTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isRecommendationEligible,mapLimit}=await import('../src/domain/market-rules.mjs')
+const {normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,isoDateLike,hasVerifiedCatalyst,limitThreshold,extractCoreTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isTechnicalSetupEligible,isThemeQualified,isRecommendationEligible,isPaperCandidateEligible,mapLimit}=await import('../src/domain/market-rules.mjs')
 const {loadRuntimeConfig}=await import('../src/config/runtime.mjs')
 const {aStockTencentQuotes,parseTencentTimestamp}=await import('../a-stock-data.mjs')
 const {buildRecommendationEmail}=await import('../src/delivery/email.mjs')
@@ -103,9 +103,31 @@ test('scores circulating market-cap fit explicitly',()=>{
 })
 
 test('applies the complete final recommendation gate',()=>{
-  assert.equal(isRecommendationEligible({technicalPass:true,total:80,themeQualified:true,intradayFresh:true}),true)
-  assert.equal(isRecommendationEligible({technicalPass:true,total:80,themeQualified:false,intradayFresh:true}),false)
-  assert.equal(isRecommendationEligible({technicalPass:true,total:77,themeQualified:true,intradayFresh:true}),false)
+  const valid={technicalPass:true,total:70,themeEvidence:true,businessAvailable:true,intradayFresh:true,validPlan:true}
+  assert.equal(isRecommendationEligible(valid),true)
+  assert.equal(isRecommendationEligible({...valid,total:69}),false)
+  assert.equal(isRecommendationEligible({...valid,businessAvailable:false}),false)
+  assert.equal(isRecommendationEligible({...valid,intradayFresh:false}),false)
+})
+
+test('requires complete technical evidence before recommendation scoring',()=>{
+  const valid={poolVerified:true,recentLimitUp:true,klineVerified:true,pullback:true,liquid:true,quoteFresh:true}
+  assert.equal(isTechnicalSetupEligible(valid),true)
+  assert.equal(isTechnicalSetupEligible({...valid,klineVerified:false}),false)
+  assert.equal(isTechnicalSetupEligible({...valid,liquid:false}),false)
+})
+
+test('requires breadth on the theme latest appearance date',()=>{
+  assert.equal(isThemeQualified({eventVerified:true,latestStocks:2,authenticity:'direct'}),true)
+  assert.equal(isThemeQualified({eventVerified:true,latestStocks:1,authenticity:'direct'}),false)
+  assert.equal(isThemeQualified({eventVerified:true,latestStocks:3,authenticity:'unverified'}),false)
+})
+
+test('allows a controlled relaxed gate only for paper candidates',()=>{
+  const valid={technicalPass:true,total:75,themeEvidence:true,latestStocks:1,totalThemeStocks:1,authenticity:'direct',intradayFresh:true,validPlan:true}
+  assert.equal(isPaperCandidateEligible(valid),true)
+  assert.equal(isPaperCandidateEligible({...valid,authenticity:'unverified'}),false)
+  assert.equal(isPaperCandidateEligible({...valid,intradayFresh:false}),false)
 })
 
 test('uses Tencent exchange timestamp instead of request time',()=>{

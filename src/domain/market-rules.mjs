@@ -53,7 +53,10 @@ export function assessThemeAuthenticity(theme,profile={}){
 }
 export const scoreThemeStructure=stats=>stats?.latest_first_boards>=2&&stats?.first_seen===stats?.latest_date?5:(stats?.max_board>=2?3:(stats?.stocks>=3?2:0))
 export const marketCapFitScore=value=>{const cap=Number(value);return !Number.isFinite(cap)||cap<=0?0:(cap>=20&&cap<=200?5:(cap>=10&&cap<=300?3:1))}
-export const isRecommendationEligible=({technicalPass,total,themeQualified,intradayFresh})=>Boolean(technicalPass&&total>=78&&themeQualified&&intradayFresh)
+export const isTechnicalSetupEligible=({poolVerified,recentLimitUp,klineVerified,pullback,liquid,quoteFresh})=>Boolean(poolVerified&&recentLimitUp&&klineVerified&&pullback&&liquid&&quoteFresh)
+export const isThemeQualified=({eventVerified,latestStocks,authenticity})=>Boolean(eventVerified&&Number(latestStocks)>=2&&authenticity==='direct')
+export const isRecommendationEligible=({technicalPass,total,themeEvidence,businessAvailable,intradayFresh,validPlan})=>Boolean(technicalPass&&total>=70&&themeEvidence&&businessAvailable&&intradayFresh&&validPlan)
+export const isPaperCandidateEligible=({technicalPass,total,themeEvidence,authenticity,intradayFresh,validPlan})=>Boolean(technicalPass&&total>=75&&themeEvidence&&authenticity==='direct'&&intradayFresh&&validPlan)
 export const hasVerifiedCatalyst=({announcementEvidence,newsEvidence}={})=>Boolean(announcementEvidence||newsEvidence)
 export async function mapLimit(items,limit,fn){const out=new Array(items.length);let next=0;await Promise.all(Array.from({length:Math.min(limit,items.length)},async()=>{while(next<items.length){const i=next++;out[i]=await fn(items[i],i)}}));return out}
 
