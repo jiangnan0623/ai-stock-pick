@@ -1,2 +1,1 @@
-{"type":"module","scripts":{"start":"node server.mjs","test":"node --test"},"dependencies":{"nodemailer":"^7.0.0"}}
-
+{"name":"ai-stock-pick","type":"module","scripts":{"start":"node server.mjs","test":"node --test"},"dependencies":{"nodemailer":"^7.0.0"}}
