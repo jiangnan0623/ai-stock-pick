@@ -2,9 +2,10 @@ name: Daily AI Stock Pick
 
 on:
   schedule:
-    # Avoid the top-of-hour Actions queue; run at 09:05 Beijing time on weekdays.
-    - cron: "5 9 * * 1-5"
-      timezone: "Asia/Shanghai"
+    # 09:05 Beijing time (01:05 UTC) on weekdays. Keep the schedule in UTC
+    # for compatibility with repositories where timezone-aware schedules are
+    # not yet enabled.
+    - cron: "5 1 * * 1-5"
   workflow_dispatch:
 
 jobs:
@@ -36,4 +37,3 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           MAIL_TO: ${{ secrets.MAIL_TO }}
-
