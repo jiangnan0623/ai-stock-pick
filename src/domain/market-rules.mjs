@@ -3,6 +3,7 @@ export const daysAgoYmd=days=>{const d=new Date();d.setUTCDate(d.getUTCDate()-da
 export const dateValue=v=>{const s=String(v||'').replace(/\D/g,'').slice(0,8);return s.length===8?Number(s):0}
 export const isoDateLike=value=>{const digits=String(value||'').replace(/\D/g,'').slice(0,8);if(digits.length===8)return `${digits.slice(0,4)}-${digits.slice(4,6)}-${digits.slice(6,8)}`;const parsed=Date.parse(String(value||''));return Number.isFinite(parsed)?new Date(parsed).toISOString().slice(0,10):null}
 export const normalizeCode=v=>String(v||'').replace(/^(sh|sz|bj)/i,'').replace(/\.(SZ|SH|BJ)$/i,'')
+export const isChiNextStock=code=>/^30/.test(normalizeCode(code))
 export const normalizeBars=bars=>[...new Map((Array.isArray(bars)?bars:[]).map(b=>[dateValue(b.trade_date||b.date||b.datetime||b.time),b]).filter(([d])=>d)).entries()].sort((a,b)=>a[0]-b[0]).map(([,b])=>b)
 export const isFreshTimestamp=(value,maxHours=18)=>{const t=Date.parse(value);return Number.isFinite(t)&&Date.now()-t>=0&&Date.now()-t<=maxHours*3600000}
 export const isSessionTimestamp=(value,session)=>dateValue(value)===Number(session)

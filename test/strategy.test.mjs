@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-const {normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,isoDateLike,hasVerifiedCatalyst,limitThreshold,extractCoreTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isTechnicalSetupEligible,isThemeQualified,isRecommendationEligible,isPaperCandidateEligible,mapLimit}=await import('../src/domain/market-rules.mjs')
+const {normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,isoDateLike,hasVerifiedCatalyst,limitThreshold,extractCoreTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isTechnicalSetupEligible,isThemeQualified,isRecommendationEligible,isPaperCandidateEligible,isChiNextStock,mapLimit}=await import('../src/domain/market-rules.mjs')
 const {loadRuntimeConfig}=await import('../src/config/runtime.mjs')
 const {aStockTencentQuotes,parseTencentTimestamp}=await import('../a-stock-data.mjs')
 const {buildRecommendationEmail}=await import('../src/delivery/email.mjs')
@@ -19,6 +19,14 @@ test('uses board-specific and ST limit thresholds',()=>{
   assert.equal(limitThreshold('600000.SH','*ST示例'),4.8)
 })
 
+test('identifies ChiNext stocks by code prefix and formats',()=>{
+  assert.equal(isChiNextStock('300001.SZ'),true)
+  assert.equal(isChiNextStock('301234'),true)
+  assert.equal(isChiNextStock('SZ300001'),true)
+  assert.equal(isChiNextStock('600000.SH'),false)
+  assert.equal(isChiNextStock('002001.SZ'),false)
+  assert.equal(isChiNextStock('688001.SH'),false)
+})
 test('normalizes compact dates used by announcements and news',()=>{
   assert.equal(isoDateLike('20260814'),'2026-08-14')
   assert.equal(isoDateLike('2026-08-14T10:00:00+08:00'),'2026-08-14')

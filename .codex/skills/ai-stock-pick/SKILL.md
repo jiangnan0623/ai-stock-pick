@@ -60,6 +60,7 @@ Implementation gates: preserve the complete 10-session union before structural f
 - Require fresh quote and minute timestamps from the intended session; non-empty stale arrays do not satisfy market confirmation.
 - If Tushare `limit_list_d` is unavailable and only one-day `daily` threshold data is available, mark the 10-session gate unverified and return observation only unless another source supplies the complete history.
 - Handle main-board, ChiNext/STAR, Beijing, and ST limit rules explicitly. Exclude IPO/no-limit periods when the applicable limit cannot be verified.
+- Exclude ChiNext stocks (codes beginning with `30`, such as `300xxx`/`301xxx`) from the candidate pool before strategy scoring unless the user explicitly requests ChiNext; also exclude them from theme-breadth statistics so recommendations and observation lists contain only non-ChiNext candidates.
 
 ## Data-source integration
 

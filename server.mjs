@@ -1,5 +1,5 @@
 import {loadRuntimeConfig} from './src/config/runtime.mjs'
-import {ymd,daysAgoYmd,dateValue,normalizeCode,normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,isoDateLike,limitThreshold,toTsCode,normalizeTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isTechnicalSetupEligible,isThemeQualified,isRecommendationEligible,hasVerifiedCatalyst,mapLimit} from './src/domain/market-rules.mjs'
+import {ymd,daysAgoYmd,dateValue,normalizeCode,normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,isoDateLike,limitThreshold,toTsCode,normalizeTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isTechnicalSetupEligible,isThemeQualified,isRecommendationEligible,hasVerifiedCatalyst,isChiNextStock,mapLimit} from './src/domain/market-rules.mjs'
 import {aStockLimitPool,aStockTencentQuotes,aStockTencentKline,aStockEastmoneyKline,aStockBaiduKline,aStockThsLimitReasons} from './src/infrastructure/providers/a-stock-data.mjs'
 import {createMarketClients} from './src/infrastructure/providers/market-clients.mjs'
 import {createRecommendationMailer} from './src/delivery/email.mjs'
@@ -48,6 +48,9 @@ async function recommendations(){
     }catch(x){return {date,source:'unavailable',fallback:true,fallbackReason:`Tushare: ${e.message}; Xiaoshi: ${x.message}`,recommendations:[],watch:[],updatedAt:new Date().toISOString()}}
     }
   }
+  const mainBoardOnly=x=>!isChiNextStock(x.ts_code||x.code||x.symbol)
+  rows=rows.filter(mainBoardOnly)
+  if(themeEvents.length)themeEvents=themeEvents.filter(mainBoardOnly)
   rows.sort((a,b)=>String(b.trade_date).localeCompare(String(a.trade_date))||Number(b.amount||0)-Number(a.amount||0))
   const themeStats=buildThemeStats(themeEvents.length?themeEvents:rows)
   let primaryQuotes={};try{primaryQuotes=await aStockTencentQuotes(rows.map(x=>x.ts_code))}catch{}
