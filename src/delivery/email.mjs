@@ -17,12 +17,18 @@ const briefAnalysis=item=>[
   item.trade_plan?.entry_trigger||null
 ].filter(Boolean).join('；')
 
+const scoreCell=item=>{
+  const total=Number(item?.score)
+  const breakdown=item?.score_breakdown||{}
+  const detail=[['题材',breakdown.theme_event],['回调',breakdown.pullback_rebound],['股性',breakdown.stock_character],['流动性/市值',breakdown.liquidity_market_cap],['行情确认',breakdown.market_confirmation]].filter(([,v])=>Number.isFinite(Number(v))).map(([label,v])=>`${label}${Number(v)}分`).join('·')
+  return `<td><strong>${Number.isFinite(total)?total:'—'}</strong>${detail?`<br><span style="font-size:12px;color:#666">${escapeHtml(detail)}</span>`:''}</td>`
+}
 export function buildRecommendationEmail(data){
-  const rows=data.recommendations.map(item=>`<tr><td>${escapeHtml(item.name)}<br>${escapeHtml(item.code)}</td><td>${beijingLimitTime(item.technical?.prior_limit_date)}</td><td>${price(item.technical?.limit_up_price)}</td><td>${escapeHtml(item.technical?.pullback_pct)}%<br>低点 ${price(item.technical?.pullback_low)}</td><td>${price(item.price)}</td><td>${price(item.trade_plan?.entry_zone_low)}–${price(item.trade_plan?.entry_zone_high)}<br>中值 ${price(item.trade_plan?.entry_reference)}</td><td>${price(item.trade_plan?.take_profit_1)} / ${price(item.trade_plan?.take_profit_2)}</td><td>${price(item.trade_plan?.stop_loss)}</td><td>${escapeHtml(briefAnalysis(item))}</td></tr>`).join('')
+  const rows=data.recommendations.map(item=>`<tr><td>${escapeHtml(item.name)}<br>${escapeHtml(item.code)}</td>${scoreCell(item)}<td>${beijingLimitTime(item.technical?.prior_limit_date)}</td><td>${price(item.technical?.limit_up_price)}</td><td>${escapeHtml(item.technical?.pullback_pct)}%<br>低点 ${price(item.technical?.pullback_low)}</td><td>${price(item.price)}</td><td>${price(item.trade_plan?.entry_zone_low)}–${price(item.trade_plan?.entry_zone_high)}<br>中值 ${price(item.trade_plan?.entry_reference)}</td><td>${price(item.trade_plan?.take_profit_1)} / ${price(item.trade_plan?.take_profit_2)}</td><td>${price(item.trade_plan?.stop_loss)}</td><td>${escapeHtml(briefAnalysis(item))}</td></tr>`).join('')
   const emptyNotice=data.recommendations.length?'':`<p><strong>今日没有股票同时通过全部硬门槛，不强行推荐。</strong></p>${data.watch?.length?`<p>重点观察：${data.watch.slice(0,3).map(item=>`${escapeHtml(item.name)}（${escapeHtml((item.missing_fields||[]).slice(0,2).join('、')||'等待触发')}）`).join('；')}</p>`:''}`
   return {
     subject:`AI选股推荐｜${data.date}`,
-    html:`<h2>AI选股推荐</h2><p>数据源：${escapeHtml(data.source)}</p>${emptyNotice}<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse"><thead><tr><th>股票</th><th>上一次涨停板时间（北京时间）</th><th>涨停价格</th><th>回调</th><th>当前价格</th><th>建仓价</th><th>止盈</th><th>止损</th><th>简要分析</th></tr></thead><tbody>${rows}</tbody></table><p>说明：日线源不提供实际封板分钟时，时间显示为当日15时收盘确认，不代表首次封板时刻。</p><p>仅为策略筛选和计划价位，不构成投资建议。</p>`
+    html:`<h2>AI选股推荐</h2><p>数据源：${escapeHtml(data.source)}</p>${emptyNotice}<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse"><thead><tr><th>股票</th><th>分数</th><th>上一次涨停板时间（北京时间）</th><th>涨停价格</th><th>回调</th><th>当前价格</th><th>建仓价</th><th>止盈</th><th>止损</th><th>简要分析</th></tr></thead><tbody>${rows}</tbody></table><p>说明：日线源不提供实际封板分钟时，时间显示为当日15时收盘确认，不代表首次封板时刻。</p><p>仅为策略筛选和计划价位，不构成投资建议。</p>`
   }
 }
 

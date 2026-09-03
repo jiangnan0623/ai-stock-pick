@@ -144,10 +144,12 @@ test('uses Tencent exchange timestamp instead of request time',()=>{
 })
 
 test('renders the requested recommendation email columns and Beijing limit-up time',()=>{
-  const email=buildRecommendationEmail({date:'20260817',source:'a-stock-data',recommendations:[{name:'示例股份',code:'600000.SH',price:10.5,technical:{prior_limit_date:'20260814',limit_up_price:11,pullback_pct:5,pullback_low:9.8,post_limit_days:2,volume_contracted:true},checks:{intraday:'当日分时新鲜'},theme_evidence:{title:'主营业务中标'},theme_analysis:{breadth:{stocks:3,first_boards:2},authenticity:{level:'direct',matched_keywords:['电网设备']}},trade_plan:{entry_zone_low:10.1,entry_zone_high:10.4,entry_reference:10.25,take_profit_1:11.5,take_profit_2:12,stop_loss:9.7,entry_trigger:'回踩确认'}}]})
+  const email=buildRecommendationEmail({date:'20260817',source:'a-stock-data',recommendations:[{name:'示例股份',code:'600000.SH',score:82,price:10.5,score_breakdown:{theme_event:25,pullback_rebound:20,stock_character:16,liquidity_market_cap:10,market_confirmation:15},technical:{prior_limit_date:'20260814',limit_up_price:11,pullback_pct:5,pullback_low:9.8,post_limit_days:2,volume_contracted:true},checks:{intraday:'当日分时新鲜'},theme_evidence:{title:'主营业务中标'},theme_analysis:{breadth:{stocks:3,first_boards:2},authenticity:{level:'direct',matched_keywords:['电网设备']}},trade_plan:{entry_zone_low:10.1,entry_zone_high:10.4,entry_reference:10.25,take_profit_1:11.5,take_profit_2:12,stop_loss:9.7,entry_trigger:'回踩确认'}}]})
   assert.match(email.html,/AI选股推荐/)
   assert.match(email.html,/2026年08月14日 15时00分（收盘确认）/)
-  for(const heading of ['涨停价格','回调','当前价格','建仓价','止盈','止损','简要分析'])assert.match(email.html,new RegExp(heading))
+  for(const heading of ['分数','涨停价格','回调','当前价格','建仓价','止盈','止损','简要分析'])assert.match(email.html,new RegExp(heading))
+  assert.match(email.html,/<strong>82<\/strong>/)
+  assert.match(email.html,/题材25分·回调20分·股性16分/)
 })
 
 test('renders a daily result even when no stock qualifies',()=>{
