@@ -142,6 +142,7 @@ Return at most three rows sorted by the declared score. Each row must include sc
 ## Output rules
 
 - Recommend only when all hard gates pass and score is at least 78/100.
+- The deployed `ai-stock-pick-v7-high-risk-moderate` gate runs slightly below the full spec: pullback recovery ≥30%, latest-3-session average turnover ≥CNY 80 million, and recommendation score ≥75. Keep those numbers in sync with `server.mjs` and `src/domain/market-rules.mjs`; do not silently lower them.
 - Return fewer than three when fewer than three candidates qualify; never fill the quota.
 - Every recommendation must include data source, timestamp, score breakdown, evidence identifiers, missing fields, entry trigger/reference price, two planning take-profit levels, stop-loss, and invalidation conditions.
 - 明确给出止盈、止损和失效条件；止损优先放在回调低点下方，或使用声明过的风险上限。

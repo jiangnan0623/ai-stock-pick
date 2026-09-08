@@ -5,7 +5,7 @@ on:
     # 09:05 Beijing time (01:05 UTC) on weekdays. Keep the schedule in UTC
     # for compatibility with repositories where timezone-aware schedules are
     # not yet enabled.
-    - cron: "5 10 * * 1-5"
+    - cron: "5 0 * * 1-5"
   workflow_dispatch:
 
 jobs:

@@ -111,9 +111,9 @@ test('scores circulating market-cap fit explicitly',()=>{
 })
 
 test('applies the complete final recommendation gate',()=>{
-  const valid={technicalPass:true,total:70,themeEvidence:true,businessAvailable:true,intradayFresh:true,validPlan:true}
+  const valid={technicalPass:true,total:75,themeEvidence:true,businessAvailable:true,intradayFresh:true,validPlan:true}
   assert.equal(isRecommendationEligible(valid),true)
-  assert.equal(isRecommendationEligible({...valid,total:69}),false)
+  assert.equal(isRecommendationEligible({...valid,total:74}),false)
   assert.equal(isRecommendationEligible({...valid,businessAvailable:false}),false)
   assert.equal(isRecommendationEligible({...valid,intradayFresh:false}),false)
 })
@@ -132,8 +132,9 @@ test('requires breadth on the theme latest appearance date',()=>{
 })
 
 test('allows a controlled relaxed gate only for paper candidates',()=>{
-  const valid={technicalPass:true,total:75,themeEvidence:true,latestStocks:1,totalThemeStocks:1,authenticity:'direct',intradayFresh:true,validPlan:true}
+  const valid={technicalPass:true,total:78,themeEvidence:true,latestStocks:1,totalThemeStocks:1,authenticity:'direct',intradayFresh:true,validPlan:true}
   assert.equal(isPaperCandidateEligible(valid),true)
+  assert.equal(isPaperCandidateEligible({...valid,total:77}),false)
   assert.equal(isPaperCandidateEligible({...valid,authenticity:'unverified'}),false)
   assert.equal(isPaperCandidateEligible({...valid,intradayFresh:false}),false)
 })
