@@ -75,15 +75,16 @@ npm test
 ## 项目架构
 
 ```text
-server.mjs                         # 组合根：装配策略、数据源与交付层
+server.mjs                         # 组合根：仅装配配置、策略服务、交付层
 src/
-  config/runtime.mjs              # 环境变量与运行配置
-  domain/market-rules.mjs         # 无副作用的市场规则和数据标准化
-  infrastructure/providers/       # a-stock-data 与其他外部金融数据源客户端
-  application/service-runtime.mjs # 单次任务、常驻服务与定时推送编排
-  delivery/http.mjs               # HTTP API
-  delivery/email.mjs              # QQ SMTP 邮件交付
-test/strategy.test.mjs            # 领域规则与数据适配回归测试
+  config/runtime.mjs               # 环境变量与运行配置
+  domain/market-rules.mjs          # 无副作用的市场规则和数据标准化
+  infrastructure/providers/        # a-stock-data 与其他外部金融数据源客户端
+  application/stock-picking.mjs    # 选股编排：涨停池构建、候选分析与推荐评分
+  application/service-runtime.mjs  # 单次任务、常驻服务与定时推送编排
+  delivery/http.mjs                # HTTP API
+  delivery/email.mjs               # QQ SMTP 邮件交付
+test/strategy.test.mjs             # 领域规则与数据适配回归测试
 ```
 
 依赖方向保持为“入口 → 应用/交付/基础设施 → 领域规则”。新增数据源应放入 `infrastructure/providers`，选股门槛与计算规则放入 `domain`，HTTP 和邮件不得承载策略判断。根目录 `a-stock-data.mjs` 暂作为兼容入口，由基础设施层统一转出，避免破坏已有脚本。

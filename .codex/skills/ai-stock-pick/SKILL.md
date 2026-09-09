@@ -10,6 +10,7 @@ description: "Screen A-share stocks using a limit-up copy strategy: recent 10-da
 - Keep deterministic market rules and normalization in `src/domain`; they must not read environment variables or call remote services.
 - Keep source-specific HTTP parsing and fallback adapters in `src/infrastructure/providers`.
 - Keep scheduling and run-once behavior in `src/application`, and HTTP/email transport in `src/delivery`.
+- Keep the stock-picking orchestration (limit-up pool build, candidate analysis, recommendation scoring) in `src/application/stock-picking.mjs` behind `createStockPickingService`; do not grow `server.mjs` with it.
 - Treat `server.mjs` as the composition root. Do not add new provider parsing, SMTP rendering, or HTTP routing directly to it.
 - Preserve provider metadata and downgrade semantics across layer boundaries; architecture cleanup must not relax any hard recommendation gate.
 
