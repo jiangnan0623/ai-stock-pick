@@ -111,10 +111,10 @@ test('scores circulating market-cap fit explicitly',()=>{
 })
 
 test('applies the complete final recommendation gate',()=>{
-  const valid={technicalPass:true,total:75,themeEvidence:true,businessAvailable:true,intradayFresh:true,validPlan:true}
+  const valid={technicalPass:true,total:75,themeEvidence:true,themeAuthentic:true,intradayFresh:true,validPlan:true}
   assert.equal(isRecommendationEligible(valid),true)
   assert.equal(isRecommendationEligible({...valid,total:74}),false)
-  assert.equal(isRecommendationEligible({...valid,businessAvailable:false}),false)
+  assert.equal(isRecommendationEligible({...valid,themeAuthentic:false}),false)
   assert.equal(isRecommendationEligible({...valid,intradayFresh:false}),false)
 })
 
