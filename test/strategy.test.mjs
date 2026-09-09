@@ -131,7 +131,7 @@ test('requires breadth on the theme latest appearance date',()=>{
   assert.equal(isThemeQualified({eventVerified:true,latestStocks:3,authenticity:'unverified'}),false)
 })
 
-test('allows a controlled relaxed gate only for paper candidates',()=>{
+test('allows a controlled moderate gate only for paper candidates',()=>{
   const valid={technicalPass:true,total:78,themeEvidence:true,latestStocks:1,totalThemeStocks:1,authenticity:'direct',intradayFresh:true,validPlan:true}
   assert.equal(isPaperCandidateEligible(valid),true)
   assert.equal(isPaperCandidateEligible({...valid,total:77}),false)
