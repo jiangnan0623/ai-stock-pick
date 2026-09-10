@@ -1,9 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-const {normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,isoDateLike,hasVerifiedCatalyst,limitThreshold,extractCoreTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isTechnicalSetupEligible,isThemeQualified,isRecommendationEligible,isPaperCandidateEligible,isChiNextStock,mapLimit}=await import('../src/domain/market-rules.mjs')
+const {normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,isoDateLike,hasVerifiedCatalyst,limitThreshold,extractCoreTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isTechnicalSetupEligible,isThemeQualified,isRecommendationEligible,isPaperCandidateEligible,isChiNextStock,mapLimit,ymd,daysAgoYmd}=await import('../src/domain/market-rules.mjs')
 const {loadRuntimeConfig}=await import('../src/config/runtime.mjs')
-const {isBeijingTradingWindow}=await import('../src/application/service-runtime.mjs')
+const {isBeijingTradingWindow,runService}=await import('../src/application/service-runtime.mjs')
+const {isChinaMarketOpenDay,isWeekendYmd,parseHolidayList}=await import('../src/application/market-calendar.mjs')
 const {aStockTencentQuotes,parseTencentTimestamp}=await import('../a-stock-data.mjs')
 const {buildRecommendationEmail}=await import('../src/delivery/email.mjs')
 
@@ -73,10 +74,11 @@ test('bounded mapper preserves result order',async()=>{
 })
 
 test('loads runtime configuration without leaking transport concerns into domain rules',()=>{
-  const config=loadRuntimeConfig({PORT:'5300',RUN_ONCE:'true',SMTP_USER:'sender@example.com'})
+  const config=loadRuntimeConfig({PORT:'5300',RUN_ONCE:'true',SMTP_USER:'sender@example.com',MARKET_HOLIDAYS:'20261001'})
   assert.equal(config.port,5300)
   assert.equal(config.runOnce,true)
   assert.equal(config.mail.user,'sender@example.com')
+  assert.equal(config.marketHolidays,'20261001')
   assert.equal(config.tushare.url,'http://api.tushare.pro')
 })
 
@@ -145,6 +147,36 @@ test('keeps long-running poll inside Beijing weekday trading window',()=>{
   assert.equal(isBeijingTradingWindow(new Date('2026-08-17T08:30:00Z')),false)
   assert.equal(isBeijingTradingWindow(new Date('2026-08-17T09:30:00Z')),false)
   assert.equal(isBeijingTradingWindow(new Date('2026-08-15T02:00:00Z')),false)
+})
+
+test('resolves Beijing calendar dates used by the pre-market schedule',()=>{
+  assert.equal(ymd(new Date('2026-08-17T23:15:00Z')),'20260818')
+  assert.equal(daysAgoYmd(1,new Date('2026-08-18T01:00:00Z')),'20260817')
+})
+
+test('detects weekends, env holidays, and calendar open days',()=>{
+  assert.equal(isWeekendYmd('20260815'),true)
+  assert.equal(isWeekendYmd('20260817'),false)
+  assert.deepEqual([...parseHolidayList('20260101, 20261001')],['20260101','20261001'])
+})
+
+test('skips statutory holidays via tushare and holiday list fallbacks',async()=>{
+  assert.equal(await isChinaMarketOpenDay('20260817',{holidays:'20260817',fetchImpl:async()=>{throw Error('no network')}}),false)
+  assert.equal(await isChinaMarketOpenDay('20260815',{fetchImpl:async()=>{throw Error('no network')}}),false)
+  assert.equal(await isChinaMarketOpenDay('20260817',{tushare:async()=>[{cal_date:'20260817',is_open:0}],fetchImpl:async()=>{throw Error('no network')}}),false)
+  assert.equal(await isChinaMarketOpenDay('20260817',{tushare:async()=>[{cal_date:'20260817',is_open:1}],fetchImpl:async()=>{throw Error('no network')}}),true)
+  const holidayFetch=async()=>({ok:true,json:async()=>({days:[{date:'2026-10-01',isOffDay:true},{date:'2026-08-17',isOffDay:false}]})})
+  assert.equal(await isChinaMarketOpenDay('20261001',{fetchImpl:holidayFetch}),false)
+  assert.equal(await isChinaMarketOpenDay('20260817',{fetchImpl:holidayFetch}),true)
+})
+
+test('run-once path skips push on non-trading days',async()=>{
+  const logs=[]
+  const logger={log:value=>logs.push(value),error:()=>{}}
+  let pushed=false
+  await runService({config:{runOnce:true},server:null,recommendations:async()=>{throw Error('should not run')},push:async()=>{pushed=true;return {sent:true}},logger,isTradingDay:async()=>false,beijingYmd:()=> '20261001'})
+  assert.equal(pushed,false)
+  assert.equal(JSON.parse(logs.at(-1)).skipped,true)
 })
 
 test('uses Tencent exchange timestamp instead of request time',()=>{

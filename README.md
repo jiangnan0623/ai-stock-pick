@@ -1,6 +1,6 @@
 # ai-stock-pick
 
-A 股“涨停复制”选股与 QQ 邮件推送工具。GitHub Actions 在工作日北京时间 09:00 自动运行，电脑关机也不影响。
+A 股“涨停复制”选股与 QQ 邮件推送工具。GitHub Actions 在工作日北京时间早上自动运行（默认 07:15），电脑关机也不影响。
 
 ## 选股逻辑
 
@@ -38,7 +38,8 @@ A 股“涨停复制”选股与 QQ 邮件推送工具。GitHub Actions 在工�
 
 工作流文件：`.github/workflows/daily-stock-pick.yml`
 
-- 自动执行：周一至周五，UTC 01:05（北京时间 09:05）；避开整点高峰，GitHub 仍可能因平台负载延迟。
+- 自动执行：北京时间周一至周五 07:15（UTC 周日至周四 23:15）；避开整点高峰，为 GitHub 排队延迟预留缓冲。盘前使用上一完整交易日数据。
+- 法定节假日跳过：执行前按上交所交易日历判断（Tushare `trade_cal` → holiday-cn → 可选 `MARKET_HOLIDAYS`），非交易日直接退出且不发信。
 - 手动执行：进入仓库 `Actions → Daily AI Stock Pick → Run workflow`。
 - 云端运行：使用 Node.js 24、`actions/checkout@v7`、`actions/setup-node@v7`。
 
@@ -53,6 +54,10 @@ A 股“涨停复制”选股与 QQ 邮件推送工具。GitHub Actions 在工�
 - `SMTP_PASS`：QQ 邮箱 SMTP 授权码，不是登录密码。
 - `MAIL_TO`：接收推荐结果的邮箱。
 
+可选 Variables（非 Secrets）：
+
+- `MARKET_HOLIDAYS`：强制休市日，逗号分隔 `YYYYMMDD`。未配置时自动用 Tushare 交易日历，失败再回退 holiday-cn。
+
 密钥不得写入代码、README 或提交记录。
 
 ## 本地运行
@@ -66,7 +71,7 @@ npm start
 
 手动生成并推送：`http://localhost:5201/api/push`
 
-长驻模式仅在北京时间工作日 09:00–16:00 轮询，默认每 5 分钟一次；日常定时推送仍以 GitHub Actions 的 `RUN_ONCE` 为准。
+长驻模式仅在北京时间工作日 09:00–16:00 轮询，默认每 5 分钟一次，并同样跳过法定节假日；日常定时推送仍以 GitHub Actions 的 `RUN_ONCE` 为准。
 
 运行逻辑测试：
 

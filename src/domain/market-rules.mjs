@@ -1,5 +1,6 @@
-export const ymd=()=>new Date().toISOString().slice(0,10).replaceAll('-','')
-export const daysAgoYmd=days=>{const d=new Date();d.setUTCDate(d.getUTCDate()-days);return d.toISOString().slice(0,10).replaceAll('-','')}
+const shanghaiYmd=value=>{const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(value).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));return `${parts.year}${parts.month}${parts.day}`}
+export const ymd=(value=new Date())=>shanghaiYmd(value)
+export const daysAgoYmd=(days,value=new Date())=>shanghaiYmd(new Date(value.getTime()-Number(days)*86400000))
 export const dateValue=v=>{const s=String(v||'').replace(/\D/g,'').slice(0,8);return s.length===8?Number(s):0}
 export const isoDateLike=value=>{const digits=String(value||'').replace(/\D/g,'').slice(0,8);if(digits.length===8)return `${digits.slice(0,4)}-${digits.slice(4,6)}-${digits.slice(6,8)}`;const parsed=Date.parse(String(value||''));return Number.isFinite(parsed)?new Date(parsed).toISOString().slice(0,10):null}
 export const normalizeCode=v=>String(v||'').replace(/^(sh|sz|bj)/i,'').replace(/\.(SZ|SH|BJ)$/i,'')
@@ -60,4 +61,3 @@ export const isRecommendationEligible=({technicalPass,total,themeEvidence,themeA
 export const isPaperCandidateEligible=({technicalPass,total,themeEvidence,authenticity,intradayFresh,validPlan})=>Boolean(technicalPass&&total>=78&&themeEvidence&&authenticity==='direct'&&intradayFresh&&validPlan)
 export const hasVerifiedCatalyst=({announcementEvidence,newsEvidence}={})=>Boolean(announcementEvidence||newsEvidence)
 export async function mapLimit(items,limit,fn){const out=new Array(items.length);let next=0;await Promise.all(Array.from({length:Math.min(limit,items.length)},async()=>{while(next<items.length){const i=next++;out[i]=await fn(items[i],i)}}));return out}
-
