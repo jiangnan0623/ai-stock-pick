@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 const {normalizeBars,isFreshTimestamp,isSessionTimestamp,isMarketTimestampFresh,isoDateLike,hasVerifiedCatalyst,limitThreshold,extractCoreTheme,buildThemeStats,assessThemeAuthenticity,scoreThemeStructure,marketCapFitScore,isTechnicalSetupEligible,isThemeQualified,isRecommendationEligible,isPaperCandidateEligible,isChiNextStock,mapLimit}=await import('../src/domain/market-rules.mjs')
 const {loadRuntimeConfig}=await import('../src/config/runtime.mjs')
+const {isBeijingTradingWindow}=await import('../src/application/service-runtime.mjs')
 const {aStockTencentQuotes,parseTencentTimestamp}=await import('../a-stock-data.mjs')
 const {buildRecommendationEmail}=await import('../src/delivery/email.mjs')
 
@@ -137,6 +138,13 @@ test('allows a controlled moderate gate only for paper candidates',()=>{
   assert.equal(isPaperCandidateEligible({...valid,total:77}),false)
   assert.equal(isPaperCandidateEligible({...valid,authenticity:'unverified'}),false)
   assert.equal(isPaperCandidateEligible({...valid,intradayFresh:false}),false)
+})
+
+test('keeps long-running poll inside Beijing weekday trading window',()=>{
+  assert.equal(isBeijingTradingWindow(new Date('2026-08-17T01:30:00Z')),true)
+  assert.equal(isBeijingTradingWindow(new Date('2026-08-17T08:30:00Z')),false)
+  assert.equal(isBeijingTradingWindow(new Date('2026-08-17T09:30:00Z')),false)
+  assert.equal(isBeijingTradingWindow(new Date('2026-08-15T02:00:00Z')),false)
 })
 
 test('uses Tencent exchange timestamp instead of request time',()=>{
